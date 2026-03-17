@@ -2,6 +2,10 @@
 
 GarmentCalc is a professional, free-to-use tool designed for garment merchandisers and production managers. It simplifies the complex process of FOB costing and Time & Action (TNA) calendar management.
 
+🧵 Free FOB costing calculator + TNA calendar 
+for garment merchandisers. No login. No server. 
+Everything runs locally in your browser.
+
 ## 🚀 Features
 
 - **FOB Costing Calculator**: Detailed breakdown of fabric, trims, manufacturing, and commercial costs with algebraic profit/drawback logic.
