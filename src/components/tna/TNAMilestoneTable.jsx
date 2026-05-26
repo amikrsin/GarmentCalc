@@ -2,7 +2,7 @@ import React from 'react';
 import { format, differenceInDays } from 'date-fns';
 import { CheckCircle2, Circle, AlertTriangle, Clock, Calendar as CalendarIcon, RotateCcw } from 'lucide-react';
 
-const TNAMilestoneTable = ({ milestones, onToggleComplete, onOverrideDate, onUpdateNote }) => {
+const TNAMilestoneTable = ({ milestones, onToggleComplete, onOverrideDate, onUpdateNote, onUpdateResponsibleParty }) => {
   const getStatusIcon = (status) => {
     switch (status) {
       case 'complete': return <CheckCircle2 className="text-green-500" size={18} />;
@@ -20,6 +20,17 @@ const TNAMilestoneTable = ({ milestones, onToggleComplete, onOverrideDate, onUpd
     }
   };
 
+  const getPartyEmoji = (party) => {
+    switch (party) {
+      case 'Factory': return '🏭';
+      case 'Buyer': return '👔';
+      case 'Lab': return '🧪';
+      case 'Freight': return '🚢';
+      case 'Internal': return '🏠';
+      default: return '🏠';
+    }
+  };
+
   const today = new Date();
 
   return (
@@ -30,6 +41,7 @@ const TNAMilestoneTable = ({ milestones, onToggleComplete, onOverrideDate, onUpd
             <tr className="bg-gray-50 border-bottom border-gray-100">
               <th className="px-6 py-4 text-xs font-bold text-[#1A3C5C] uppercase tracking-wider">Status</th>
               <th className="px-6 py-4 text-xs font-bold text-[#1A3C5C] uppercase tracking-wider">Milestone</th>
+              <th className="px-6 py-4 text-xs font-bold text-[#1A3C5C] uppercase tracking-wider">Party</th>
               <th className="px-6 py-4 text-xs font-bold text-[#1A3C5C] uppercase tracking-wider">Target Date</th>
               <th className="px-6 py-4 text-xs font-bold text-[#1A3C5C] uppercase tracking-wider">Remaining</th>
               <th className="px-6 py-4 text-xs font-bold text-[#1A3C5C] uppercase tracking-wider">Actual Date</th>
@@ -50,6 +62,17 @@ const TNAMilestoneTable = ({ milestones, onToggleComplete, onOverrideDate, onUpd
                     <span className={`text-sm font-medium ${m.isComplete ? 'text-gray-500' : 'text-gray-900'}`}>
                       {m.name}
                     </span>
+                  </td>
+                  <td className="px-6 py-4">
+                    <select
+                      value={m.responsibleParty || 'Internal'}
+                      onChange={(e) => onUpdateResponsibleParty?.(m.id, e.target.value)}
+                      className="text-[10px] font-bold border-none bg-transparent focus:ring-0 cursor-pointer"
+                    >
+                      {['Factory', 'Buyer', 'Lab', 'Freight', 'Internal'].map(p => (
+                        <option key={p} value={p}>{getPartyEmoji(p)} {p}</option>
+                      ))}
+                    </select>
                   </td>
                   <td className="px-6 py-4">
                     <div className="flex items-center space-x-2 text-sm text-gray-600">

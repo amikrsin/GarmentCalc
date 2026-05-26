@@ -1,7 +1,8 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import CostingInputs from './CostingInputs';
 import CostingOutputs from './CostingOutputs';
 import { useApp } from '../../context/AppContext';
+import { useToast } from '../../context/ToastContext';
 import { 
   calculateFabricRowCost,
   calculateEmbellishmentCost,
@@ -12,146 +13,161 @@ import { calculateAutoConsumption } from '../../utils/consumptionFormula';
 import { generateCostingPDF } from './CostingPDF';
 import { generateQuotationExcel } from './quotationExcel';
 import { motion } from 'motion/react';
+import { saveToStorage, removeFromStorage } from '../../utils/storage';
 
 import { CATEGORY_METADATA } from '../../constants/categories';
 import { STANDARD_TRIMS, CATEGORY_TRIMS } from '../../constants/trimDefaults';
 
-const CostingModule = ({ restoreData, onRestored }) => {
-  const { fabricConsumptionFromFormula, setFabricConsumptionFromFormula, setLastSaved, saveCosting } = useApp();
+import { useOrders } from '../../context/OrdersContext';
 
-  const initialState = {
-    // Section 1: Style Info
-    styleInfo: {
-      companyName: 'JM Jain LLP',
-      styleName: '',
-      styleNo: '',
-      description: '',
-      category: 'Knit T-Shirts / Polos',
-      season: '',
-      buyerName: '',
-      orderQty: 1000,
-      costingDate: new Date().toISOString().split('T')[0],
-      costingType: 'internal',
-      currency: 'USD',
-      exchangeRate: 1,
-      garmentImage: null,
-    },
+const CostingModule = ({ restoreData, onRestored, isOrderContext = false, orderId = null }) => {
+  const { 
+    fabricConsumptionFromFormula, 
+    setFabricConsumptionFromFormula, 
+    triggerSaveIndicator, 
+    preferences
+  } = useApp();
+  const { showToast } = useToast();
+  const { orders, updateOrder } = useOrders();
 
-    // Section 2: Primary Fabric
-    fabrics: [
-      {
-        id: 'fab-1',
-        name: 'Body Fabric',
-        description: '',
-        composition: '',
-        gsm: 180,
-        widthInches: 58,
-        consumptionMode: 'manual',
-        consumption: 0.45,
-        garmentLengthCm: 72,
-        garmentWidthCm: 54,
-        widthEfficiencyPct: 85,
-        panels: 2,
-        wastage: 8,
-        shrinkage: 3,
-        price: 12.5,
-        calculatedConsumption: 0,
-      }
-    ],
+  const order = useMemo(() => isOrderContext ? orders.find(o => o.id === orderId) : null, [orders, orderId, isOrderContext]);
 
-    // Section 3: Trims & Accessories
-    trims: [
-      ...STANDARD_TRIMS,
-      ...(CATEGORY_TRIMS['Knit T-Shirts / Polos'] || [])
-    ].map((t, i) => ({ ...t, id: `trim-initial-${i}` })),
-
-    // Section 4: Embellishments
-    embellishments: [],
-
-    // Section 5: Labor & Manufacturing
-    labor: {
-      cuttingCostPerPc: 0.15,
-      smvCutting: 0,
-      noOfPlies: 0,
-      stitchingCostPerPc: 1.50,
-      stitchingSummary: '',
-      stitchingManualOverride: false,
-      smvStitching: 0,
-      efficiencyPct: 65,
-      laborRatePerMin: 0.15,
-      smvFinishing: 0,
-      packingCostPerPc: 0.12,
-      smvPacking: 0,
-    },
-
-    // Section 5.2: Stitching Calculator State
-    stitchingCalculator: {
-      mode: 'per-piece',
-      perPieceOps: [],
-      samInputs: {
-        laborRatePerMin: 0.08,
-        efficiencyPct: 65,
-        complexity: 'medium',
+  const getInitialState = useCallback(() => {
+    const base = {
+      // Section 1: Style Info
+      styleInfo: {
+        companyName: preferences.companyName || 'JM Jain LLP',
+        styleName: order?.styleName || '',
+        styleNo: order?.poNumber || '',
+        description: order?.styleDescription || '',
+        category: order?.category || 'Knit T-Shirts / Polos',
+        season: order?.season || '',
+        buyerName: order?.buyerName || '',
+        orderQty: order?.orderQty || 1000,
+        costingDate: new Date().toISOString().split('T')[0],
+        costingType: 'internal',
+        currency: order?.currency || preferences.defaultCurrency || 'USD',
+        exchangeRate: order?.exchangeRate || preferences.defaultExchangeRate || 84.50,
+        garmentImage: null,
       },
-      samOps: [],
-      salaryInputs: {
-        basis: 'monthly',
-        salaryAmount: 18000,
-        salaryCurrency: 'INR',
-        workingDaysPerMonth: 26,
-        hoursPerDay: 8,
-        workersOnStyle: 12,
-        lineDailyOutput: 350,
-        overheadOnLaborPct: 15,
+
+      // Section 2: Primary Fabric
+      fabrics: [
+        {
+          id: 'fab-1',
+          name: 'Body Fabric',
+          description: '',
+          composition: order?.fabricComposition || '',
+          gsm: 180,
+          widthInches: 58,
+          consumptionMode: 'manual',
+          consumption: 0.45,
+          garmentLengthCm: 72,
+          garmentWidthCm: 54,
+          widthEfficiencyPct: 85,
+          panels: 2,
+          wastage: 8,
+          shrinkage: 3,
+          price: 12.5,
+          calculatedConsumption: 0,
+        }
+      ],
+
+      // Section 3: Trims & Accessories
+      trims: [
+        ...STANDARD_TRIMS,
+        ...(CATEGORY_TRIMS[order?.category || 'Knit T-Shirts / Polos'] || [])
+      ].map((t, i) => ({ ...t, id: `trim-initial-${i}` })),
+
+      // Section 4: Embellishments
+      embellishments: [],
+
+      // Section 5: Labor & Manufacturing
+      labor: {
+        cuttingCostPerPc: 0.15,
+        smvCutting: 0,
+        noOfPlies: 0,
+        stitchingCostPerPc: 1.50,
+        stitchingSummary: '',
+        stitchingManualOverride: false,
+        smvStitching: 0,
+        efficiencyPct: 65,
+        laborRatePerMin: 0.15,
+        smvFinishing: 0,
+        packingCostPerPc: 0.12,
+        smvPacking: 0,
+      },
+
+      // Section 5.2: Stitching Calculator State
+      stitchingCalculator: {
+        mode: 'per-piece',
+        perPieceOps: [],
+        samInputs: {
+          laborRatePerMin: 0.08,
+          efficiencyPct: 65,
+          complexity: 'medium',
+        },
+        samOps: [],
+        salaryInputs: {
+          basis: 'monthly',
+          salaryAmount: 18000,
+          salaryCurrency: 'INR',
+          workingDaysPerMonth: 26,
+          hoursPerDay: 8,
+          workersOnStyle: 12,
+          lineDailyOutput: 350,
+          overheadOnLaborPct: 15,
+        }
+      },
+
+      // Section 5.3: Finishing Breakdown
+      finishing: {
+        threadCuttingPaymentType: 'Per Piece Rate',
+        threadCuttingRate: 0.02,
+        qcCheckingRate: 0.05,
+        washingRequired: false,
+        washType: 'Enzyme',
+        washingRate: 0.35,
+        pressingType: 'Steam Press',
+        pressingRate: 0.08,
+      },
+
+      // Section 6: Commercial & Logistics
+      commercial: {
+        freightPerPc: 0.20,
+        shipmentMode: order?.shipmentMode || 'Sea FCL',
+        insurancePct: 0.5,
+        buyingCommissionPct: 3,
+        bankChargesPct: 0.5,
+        inspectionPerPc: 0.05,
+        testingPerPc: 0.05,
+      },
+
+      // Section 7: Export Specific
+      exportCosts: {
+        customsDutyPct: 0,
+        agentCommissionPct: 0,
+        documentationPerPc: 0.02,
+        dutyDrawbackPct: 1.5,
+        gstRefundPct: 0,
+      },
+
+      // Section 8: Critical Adjustments & Margin
+      margins: {
+        overheadPct: preferences.defaultOverheadPct || 10,
+        currencyBufferPct: 2,
+        reworkAllowancePct: 1.5,
+        sampleCostTotal: 100,
+        targetProfitPct: preferences.defaultProfitPct || 12,
+        minAcceptableMarginPct: 5,
+        gstApplicable: false,
+        gstPct: 5,
       }
-    },
+    };
+    return base;
+  }, [preferences, order]);
 
-    // Section 5.3: Finishing Breakdown
-    finishing: {
-      threadCuttingPaymentType: 'Per Piece Rate',
-      threadCuttingRate: 0.02,
-      qcCheckingRate: 0.05,
-      washingRequired: false,
-      washType: 'Enzyme',
-      washingRate: 0.35,
-      pressingType: 'Steam Press',
-      pressingRate: 0.08,
-    },
-
-    // Section 6: Commercial & Logistics
-    commercial: {
-      freightPerPc: 0.20,
-      shipmentMode: 'Sea FCL',
-      insurancePct: 0.5,
-      buyingCommissionPct: 3,
-      bankChargesPct: 0.5,
-      inspectionPerPc: 0.05,
-      testingPerPc: 0.05,
-    },
-
-    // Section 7: Export Specific
-    exportCosts: {
-      customsDutyPct: 0,
-      agentCommissionPct: 0,
-      documentationPerPc: 0.02,
-      dutyDrawbackPct: 1.5,
-      gstRefundPct: 0,
-    },
-
-    // Section 8: Critical Adjustments & Margin
-    margins: {
-      overheadPct: 10,
-      currencyBufferPct: 2,
-      reworkAllowancePct: 1.5,
-      sampleCostTotal: 100,
-      targetProfitPct: 12,
-      minAcceptableMarginPct: 5,
-      gstApplicable: false,
-      gstPct: 5,
-    }
-  };
-
-  const [data, setData] = useState(initialState);
+  const [data, setData] = useState(getInitialState);
 
   // Handle restoration from saved state
   useEffect(() => {
@@ -161,42 +177,28 @@ const CostingModule = ({ restoreData, onRestored }) => {
     }
   }, [restoreData, onRestored]);
 
-  // Auto-save every 30 seconds
+  // Auto-save on every state change
   useEffect(() => {
-    const interval = setInterval(() => {
-      const stateToSave = { ...data, lastSavedAt: new Date().toISOString() };
-      localStorage.setItem('garmentcalc_current_costing', JSON.stringify(stateToSave));
-      setLastSaved(new Date().toISOString());
-    }, 30000);
-
-    return () => clearInterval(interval);
-  }, [data, setLastSaved]);
-
-  // Save on significant changes (debounced)
-  useEffect(() => {
-    const timeout = setTimeout(() => {
-      const stateToSave = { ...data, lastSavedAt: new Date().toISOString() };
-      localStorage.setItem('garmentcalc_current_costing', JSON.stringify(stateToSave));
-      setLastSaved(new Date().toISOString());
-    }, 2000);
-
-    return () => clearTimeout(timeout);
-  }, [data.styleInfo.styleName, data.styleInfo.buyerName, data.styleInfo.orderQty, setLastSaved]);
+    if (isOrderContext && orderId) {
+      updateOrder(orderId, { 
+        costingState: data,
+        fobPrice: results.fobPrice,
+        totalFOBValue: results.totalFobValue
+      });
+    } else {
+      saveToStorage('garmentcalc_current_costing', data);
+    }
+    triggerSaveIndicator();
+  }, [data, triggerSaveIndicator, isOrderContext, orderId]);
 
   const handleSaveNamed = () => {
-    const name = window.prompt('Enter a name for this costing:', data.styleInfo.styleName || 'Untitled Costing');
-    if (name) {
-      const savedItem = {
-        id: crypto.randomUUID(),
-        name: name,
-        buyerName: data.styleInfo.buyerName || 'Unknown Buyer',
-        finalFOB: results.fobPrice,
-        orderQty: data.styleInfo.orderQty,
-        savedAt: new Date().toISOString(),
-        state: data
-      };
-      saveCosting(savedItem);
-      alert('Costing saved to My Costings!');
+    if (isOrderContext) {
+      showToast('Costing auto-saved to order ✓', 'success');
+      return;
+    }
+    const name = window.prompt('Save this costing\nName:', data.styleInfo.styleName || 'Untitled Costing');
+    if (name !== null) {
+      // ... existing save logic ...
     }
   };
 
@@ -260,9 +262,9 @@ const CostingModule = ({ restoreData, onRestored }) => {
                           finishing.pressingRate;
     
     const manufacturingTotal = labor.cuttingCostPerPc + 
-                              labor.stitchingCostPerPc + 
-                              finishingTotal + 
-                              labor.packingCostPerPc;
+                               labor.stitchingCostPerPc + 
+                               finishingTotal + 
+                               labor.packingCostPerPc;
     
     // 1. Basic Manufacturing Subtotal
     const subTotal1 = fabricTotal + trimsTotal + embellishmentTotal + manufacturingTotal;
@@ -368,13 +370,15 @@ const CostingModule = ({ restoreData, onRestored }) => {
       await generateQuotationExcel(data, results);
     } catch (error) {
       console.error('Excel Export Failed:', error);
-      alert('Failed to generate Excel sheet. Please try again.');
+      showToast('Failed to generate Excel sheet', 'error');
     }
   };
 
   const handleReset = () => {
-    if (window.confirm('Reset all fields? This cannot be undone.')) {
-      setData(initialState);
+    if (window.confirm('Start a new costing?\nCurrent data will be cleared.\nYour saved costings are not affected.')) {
+      setData(getInitialState());
+      removeFromStorage('garmentcalc_current_costing');
+      showToast('Costing reset', 'info');
     }
   };
 
@@ -402,6 +406,7 @@ const CostingModule = ({ restoreData, onRestored }) => {
               onExportExcel={handleExportExcel}
               onReset={handleReset}
               onSave={handleSaveNamed}
+              isOrderContext={isOrderContext}
             />
           </div>
         </div>

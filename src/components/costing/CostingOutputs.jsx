@@ -2,7 +2,7 @@ import React from 'react';
 import CostPieChart from './CostPieChart';
 import { Download, RotateCcw, AlertCircle, ShieldCheck, FileText, FileSpreadsheet, Save } from 'lucide-react';
 
-const CostingOutputs = ({ data, results, breakdown, onExport, onExportExcel, onReset, onSave }) => {
+const CostingOutputs = ({ data, results, breakdown, onExport, onExportExcel, onReset, onSave, isOrderContext = false }) => {
   const currencies = [
     { code: 'USD', symbol: '$' },
     { code: 'INR', symbol: '₹' },
@@ -14,13 +14,8 @@ const CostingOutputs = ({ data, results, breakdown, onExport, onExportExcel, onR
   const selectedCurrency = currencies.find(c => c.code === data.styleInfo.currency) || currencies[0];
   const currencySymbol = selectedCurrency.symbol;
   
-  // If the user is working in a non-USD currency, we assume the inputs are already in that currency.
-  // The exchange rate should only be used if we were converting FROM a base (like USD) to another.
-  // But the user wants the calculation to START in the selected currency.
-  // So for the primary display, we use a rate of 1.
   const formatVal = (val) => val.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
-  // Grouping for Quotation View
   const quotationBreakdown = [
     { name: 'Fabric & Raw Material', value: results.fabricTotal, color: '#1A3C5C' },
     { name: 'Trims, CM & Finishing', value: results.trimsTotal + results.manufacturingTotal + results.embellishmentTotal, color: '#E8622A' },
@@ -36,7 +31,6 @@ const CostingOutputs = ({ data, results, breakdown, onExport, onExportExcel, onR
 
   return (
     <div className="space-y-6">
-      {/* View Mode Badge */}
       <div className="flex items-center justify-between">
         <div className={`flex items-center space-x-2 py-2 px-4 rounded-xl text-[10px] font-bold uppercase tracking-widest border ${
           isInternal 
@@ -58,7 +52,6 @@ const CostingOutputs = ({ data, results, breakdown, onExport, onExportExcel, onR
         )}
       </div>
 
-      {/* FOB Price Display */}
       <div className={`p-6 rounded-2xl shadow-xl relative overflow-hidden transition-colors duration-500 ${
         isInternal ? 'bg-[#1A3C5C]' : 'bg-[#E8622A]'
       } text-white`}>
@@ -89,7 +82,6 @@ const CostingOutputs = ({ data, results, breakdown, onExport, onExportExcel, onR
         </div>
       </div>
 
-      {/* Warning */}
       {results.profitAmt / results.fobPrice < (data.margins.minAcceptableMarginPct / 100) && (
         <div className="flex items-center space-x-2 p-3 bg-red-50 border border-red-100 text-red-600 rounded-xl text-sm animate-pulse">
           <AlertCircle size={18} />
@@ -97,7 +89,6 @@ const CostingOutputs = ({ data, results, breakdown, onExport, onExportExcel, onR
         </div>
       )}
 
-      {/* Cost Breakdown Table */}
       <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm">
         <h3 className="text-xs font-bold text-[#1A3C5C] uppercase tracking-widest mb-6">
           {isInternal ? 'Detailed Costing' : 'Price Composition'}
@@ -130,13 +121,11 @@ const CostingOutputs = ({ data, results, breakdown, onExport, onExportExcel, onR
         </div>
       </div>
 
-      {/* Pie Chart */}
       <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm">
         <h3 className="text-xs font-bold text-[#1A3C5C] uppercase tracking-widest mb-4">Visual Composition</h3>
         <CostPieChart data={breakdown} />
       </div>
 
-      {/* Actions */}
       <div className="flex flex-col space-y-3">
         <button
           onClick={onExport}
@@ -150,13 +139,21 @@ const CostingOutputs = ({ data, results, breakdown, onExport, onExportExcel, onR
           <span>Export {isInternal ? 'Internal Sheet' : 'Buyer Quotation'}</span>
         </button>
         
-        <button
-          onClick={onSave}
-          className="flex items-center justify-center space-x-2 py-3 bg-white border-2 border-[#1A3C5C] text-[#1A3C5C] hover:bg-gray-50 rounded-2xl font-bold transition-all active:scale-95"
-        >
-          <Save size={18} />
-          <span>Save Costing</span>
-        </button>
+        {!isOrderContext && (
+          <button
+            onClick={onSave}
+            className="flex items-center justify-center space-x-2 py-3 bg-white border-2 border-[#1A3C5C] text-[#1A3C5C] hover:bg-gray-50 rounded-2xl font-bold transition-all active:scale-95"
+          >
+            <Save size={18} />
+            <span>Save Costing</span>
+          </button>
+        )}
+
+        {isOrderContext && (
+          <div className="text-center py-2 text-[10px] font-bold text-gray-400 uppercase tracking-widest">
+            ✓ Auto-saved to order
+          </div>
+        )}
 
         <button
           onClick={onExportExcel}

@@ -1,22 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 import { useApp } from '../../context/AppContext';
-import { formatDistanceToNow } from 'date-fns';
+import { motion, AnimatePresence } from 'motion/react';
 
 const Footer = () => {
-  const { lastSaved } = useApp();
-  const [timeAgo, setTimeAgo] = useState('');
-
-  useEffect(() => {
-    if (!lastSaved) return;
-    
-    const update = () => {
-      setTimeAgo(formatDistanceToNow(new Date(lastSaved), { addSuffix: true }));
-    };
-    
-    update();
-    const interval = setInterval(update, 30000);
-    return () => clearInterval(interval);
-  }, [lastSaved]);
+  const { showSaveIndicator } = useApp();
 
   return (
     <footer className="bg-white border-t border-gray-200 py-6 mt-auto">
@@ -26,11 +13,21 @@ const Footer = () => {
             <div className="text-sm text-gray-500">
               © 2026 GarmentCalc. All calculations run locally in your browser. No data is stored or transmitted.
             </div>
-            {lastSaved && (
-              <div className="text-[10px] text-gray-400 mt-1">
-                Last saved: {timeAgo}
-              </div>
-            )}
+            
+            <div className="h-4 mt-1">
+              <AnimatePresence>
+                {showSaveIndicator && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 5 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0 }}
+                    className="text-[10px] font-bold text-gray-400 uppercase tracking-widest"
+                  >
+                    All changes saved
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
           </div>
           <div className="text-sm font-medium text-[#1A3C5C]">
             Built for <span className="text-[#E8622A]">Garment Professionals</span>
