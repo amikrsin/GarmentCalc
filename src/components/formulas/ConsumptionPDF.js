@@ -15,7 +15,29 @@ export const generateConsumptionPDF = ({
   sizeBreakdown,
   isKnit,
   totalForOrder,
-  bufferQty
+  bufferQty,
+  
+  // Custom Metadata
+  styleName,
+  poNumber,
+  buyerName,
+  season,
+  merchandiserName,
+  
+  // Custom Variables
+  shrinkageL,
+  shrinkageW,
+  markerEfficiency,
+  wastageRate,
+  baseCadResult,
+  
+  // Lining Settings
+  includeLining,
+  liningFabricDesc,
+  liningScalePct,
+  liningConsumption,
+  liningTotalForOrder,
+  liningTotalWithBuffer
 }) => {
   const doc = new jsPDF('p', 'mm', 'a4');
   const dateObj = new Date();
@@ -29,118 +51,230 @@ export const generateConsumptionPDF = ({
 
   // 1. Header Block
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(14);
+  doc.setFontSize(11);
   doc.setTextColor(navyColor[0], navyColor[1], navyColor[2]);
-  doc.text('GarmentCalc Industrial Modules', 14, 15);
+  doc.text('GARMENTCALC ADVANCED CAD SYSTEMS', 14, 14);
   
-  doc.setFontSize(16);
-  doc.setTextColor(orangeColor[0], orangeColor[1], orangeColor[2]);
-  doc.text('ADVANCED FABRIC CONSUMPTION SPEC SHEET', 105, 22, { align: 'center' });
+  doc.setFontSize(8);
+  doc.setTextColor(grayTextColor[0], grayTextColor[1], grayTextColor[2]);
+  doc.text('Industrial Apparel Manufacturing and Materials Procurement Spec Sheet', 14, 18);
 
   // Border accents
-  doc.setDrawColor(26, 60, 92);
+  doc.setDrawColor(navyColor[0], navyColor[1], navyColor[2]);
   doc.setLineWidth(0.8);
-  doc.line(14, 25, 196, 25);
+  doc.line(14, 21, 196, 21);
   
-  doc.setDrawColor(232, 98, 42);
+  doc.setDrawColor(orangeColor[0], orangeColor[1], orangeColor[2]);
   doc.setLineWidth(0.4);
-  doc.line(14, 26.2, 196, 26.2);
+  doc.line(14, 22.2, 196, 22.2);
 
-  // 2. Summary Details Block (2-column layout)
+  // 2. MAIN PO / PURCHASE METADATA BLOCK
   doc.setFontSize(9);
   doc.setTextColor(darkTextColor[0], darkTextColor[1], darkTextColor[2]);
-  const startY = 33;
-  const col1 = 14;
-  const col2 = 50;
-  const col3 = 110;
-  const col4 = 150;
-
-  // Row 1: Category & Order Volume
-  doc.setFont('helvetica', 'bold');
-  doc.text('Garment Style Group:', col1, startY);
-  doc.setFont('helvetica', 'normal');
-  doc.text(currentG.main || '', col2, startY);
-
-  doc.setFont('helvetica', 'bold');
-  doc.text('Order Volume (Pcs):', col3, startY);
-  doc.setFont('helvetica', 'normal');
-  doc.text(`${orderQty.toLocaleString()} units`, col4, startY);
-
-  // Row 2: Sub-Category & Order Dozens
-  doc.setFont('helvetica', 'bold');
-  doc.text('Product Item Name:', col1, startY + 6);
-  doc.setFont('helvetica', 'normal');
-  doc.text(currentG.sub || '', col2, startY + 6);
-
-  doc.setFont('helvetica', 'bold');
-  doc.text('Order Volume (Doz):', col3, startY + 6);
-  doc.setFont('helvetica', 'normal');
-  doc.text(`${orderDoz.toLocaleString()} Dozens`, col4, startY + 6);
-
-  // Row 3: Fabrication Group & Base Cons Summary
-  doc.setFont('helvetica', 'bold');
-  doc.text('Fabrication Type:', col1, startY + 12);
-  doc.setFont('helvetica', 'normal');
-  doc.text(isKnit ? 'Knit (Poundage basis)' : 'Woven (Yardage basis)', col2, startY + 12);
-
-  doc.setFont('helvetica', 'bold');
-  doc.text('Unit Consumption:', col3, startY + 12);
-  doc.setFont('helvetica', 'bold');
-  doc.setTextColor(orangeColor[0], orangeColor[1], orangeColor[2]);
-  doc.text(`${calculatedResult.toFixed(4)} ${currentG.unit}`, col4, startY + 12);
-  doc.setTextColor(darkTextColor[0], darkTextColor[1], darkTextColor[2]);
-
-  // Row 4: Base Quantity & With 5% Wastage Allowed
-  doc.setFont('helvetica', 'bold');
-  doc.text('Total Fabric Base:', col1, startY + 18);
-  doc.setFont('helvetica', 'normal');
-  doc.text(`${totalForOrder.toLocaleString('en-US', { maximumFractionDigits: 2 })} ${isKnit ? 'KG' : 'Yards'}`, col2, startY + 18);
-
-  doc.setFont('helvetica', 'bold');
-  doc.text('Fabric with +5% Buffer:', col3, startY + 18);
-  doc.setFont('helvetica', 'bold');
-  doc.text(`${bufferQty.toLocaleString('en-US', { maximumFractionDigits: 2 })} ${isKnit ? 'KG' : 'Yards'}`, col4, startY + 18);
-  doc.setFont('helvetica', 'normal');
-
-  // Row 5: Price Inputs & Audit Date
-  doc.setFont('helvetica', 'bold');
-  doc.text('Est. Cost Calculations:', col1, startY + 24);
-  doc.setFont('helvetica', 'normal');
-  let costStr = 'Not Provided';
-  if (priceInr) {
-    costStr = `₹${costInr.toLocaleString('en-IN', { maximumFractionDigits: 0 })} INR`;
-  }
-  if (priceUsd) {
-    costStr += costStr === 'Not Provided' ? `$${costUsd.toLocaleString('en-US', { maximumFractionDigits: 0 })} USD` : ` / $${costUsd.toLocaleString('en-US', { maximumFractionDigits: 0 })} USD`;
-  }
-  doc.text(costStr, col2, startY + 24);
-
-  doc.setFont('helvetica', 'bold');
-  doc.text('Doc Audited Timestamp:', col3, startY + 24);
-  doc.setFont('helvetica', 'normal');
-  doc.text(dateStr, col4, startY + 24);
-
-  // Decorative Box around Overview Info
-  doc.setDrawColor(220, 225, 230);
+  
+  const blockY = 27;
+  doc.setFillColor(248, 250, 252); // Soft gray background for the header metadata
+  doc.rect(14, blockY, 182, 32, 'F');
+  doc.setDrawColor(226, 232, 240);
   doc.setLineWidth(0.25);
-  doc.rect(10, startY - 5, 190, 36);
+  doc.rect(14, blockY, 182, 32, 'D');
 
-  // 3. Size-Wise Ratio Allocation Table (Aesthetic design)
+  const c1 = 18;
+  const c2 = 50;
+  const c3 = 110;
+  const c4 = 145;
+
+  doc.setFont('helvetica', 'bold');
+  doc.text('Style / Pattern No:', c1, blockY + 6);
+  doc.setFont('helvetica', 'normal');
+  doc.text(styleName || 'N/A', c2, blockY + 6);
+
+  doc.setFont('helvetica', 'bold');
+  doc.text('Buyer Name:', c3, blockY + 6);
+  doc.setFont('helvetica', 'normal');
+  doc.text(buyerName || 'N/A', c4, blockY + 6);
+
+  doc.setFont('helvetica', 'bold');
+  doc.text('PO Number:', c1, blockY + 13);
+  doc.setFont('helvetica', 'normal');
+  doc.text(poNumber || 'N/A', c2, blockY + 13);
+
+  doc.setFont('helvetica', 'bold');
+  doc.text('Target Season:', c3, blockY + 13);
+  doc.setFont('helvetica', 'normal');
+  doc.text(season || 'N/A', c4, blockY + 13);
+
+  doc.setFont('helvetica', 'bold');
+  doc.text('Garment Archetype:', c1, blockY + 20);
+  doc.setFont('helvetica', 'normal');
+  doc.text(`${currentG.main} - ${currentG.sub}`, c2, blockY + 20);
+
+  doc.setFont('helvetica', 'bold');
+  doc.text('Assigned Merchandiser:', c3, blockY + 20);
+  doc.setFont('helvetica', 'normal');
+  doc.text(merchandiserName || 'N/A', c4, blockY + 20);
+
+  doc.setFont('helvetica', 'bold');
+  doc.text('Fabrication Type:', c1, blockY + 27);
+  doc.setFont('helvetica', 'normal');
+  doc.text(isKnit ? 'Knit fabric (Poundage basis)' : 'Woven cloth (Yardage basis)', c2, blockY + 27);
+
+  doc.setFont('helvetica', 'bold');
+  doc.text('Report Printed Date:', c3, blockY + 27);
+  doc.setFont('helvetica', 'normal');
+  doc.text(dateStr, c4, blockY + 27);
+
+  // 3. TARGET MATERIAL PROCUREMENT REQUIREMENTS (Main Big KPI section)
+  const kpiY = 64;
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(10);
   doc.setTextColor(navyColor[0], navyColor[1], navyColor[2]);
-  doc.text('SIZE-WISE GRADING AND FABRIC ALLOCATION', 14, startY + 39);
+  doc.text('SHELL FABRIC PROCUREMENT SUMMARY', 14, kpiY);
 
-  const sizeHeaders = [['SIZE SPEC', 'RATIO WEIGHT', 'ALLOCATED PIECES', `ALLOCATED CONSUMPTION (${isKnit ? 'KG' : 'Yds'})`]];
-  const sizeRows = sizeBreakdown.map(s => [
-    s.size,
-    s.ratio,
-    `${s.pcs.toLocaleString()} pcs`,
-    `${s.tot.toLocaleString('en-US', { maximumFractionDigits: 2 })} ${isKnit ? 'kg' : 'yds'}`
-  ]);
+  const summaryHeaders = [['PARAMETER', 'VALUE / OUTPUT', 'SYSTEM METRIC DESCRIPTION']];
+  const summaryRows = [
+    [
+      'Order Volume', 
+      `${orderQty.toLocaleString()} units (${orderDoz.toLocaleString()} Doz)`, 
+      'Grand total bulk garment count requested for sewing line.'
+    ],
+    [
+      `Design CAD Net Consumption`, 
+      `${baseCadResult.toFixed(4)} ${currentG.unit === 'KG/Dozen' ? 'KG/Doz' : 'Yds/Pc'}`, 
+      'Aesthetic pattern surface area based purely on spec grading.'
+    ],
+    [
+      `Industrial Target Cons`, 
+      `${calculatedResult.toFixed(4)} ${currentG.unit === 'KG/Dozen' ? 'KG/Doz' : 'Yds/Pc'}`, 
+      'Compounded target accounting for Shrinkage, Nesting (Marker), and Floor wastage.'
+    ],
+    [
+      'Total Shell Fabric Needed', 
+      `${totalForOrder.toLocaleString('en-US', { maximumFractionDigits: 2 })} ${isKnit ? 'KG' : 'Yards'}`, 
+      `Industrial baseline order volume for shell materials.`
+    ],
+    [
+      'Procurement Order (+5% Buffer)', 
+      `${bufferQty.toLocaleString('en-US', { maximumFractionDigits: 2 })} ${isKnit ? 'KG' : 'Yards'}`, 
+      `Safety margin fabric purchase order value including cutting floor allowance.`
+    ]
+  ];
+
+  if (priceInr || priceUsd) {
+    let priceStr = '';
+    if (priceInr) priceStr += `₹${costInr.toLocaleString('en-IN', { maximumFractionDigits: 0 })} INR`;
+    if (priceUsd) priceStr += (priceStr ? ' / ' : '') + `$${costUsd.toLocaleString('en-US', { maximumFractionDigits: 0 })} USD`;
+    summaryRows.push(['Estimated Materials Invoice', priceStr, 'Total calculated bulk raw materials cost.']);
+  }
 
   autoTable(doc, {
-    startY: startY + 41,
+    startY: kpiY + 2,
+    head: summaryHeaders,
+    body: summaryRows,
+    theme: 'grid',
+    styles: { fontSize: 8, cellPadding: 2.5 },
+    headStyles: { fillColor: navyColor, textColor: [255, 255, 255], fontStyle: 'bold' },
+    columnStyles: {
+      0: { fontStyle: 'bold', cellWidth: 50 },
+      1: { fontStyle: 'bold', textColor: [232, 98, 42], cellWidth: 50 },
+      2: { textColor: grayTextColor }
+    }
+  });
+
+  let currentY = doc.lastAutoTable.finalY + 8;
+
+  // 4. LINING FABRIC PANEL (IF SELECTED)
+  if (includeLining) {
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(10);
+    doc.setTextColor(navyColor[0], navyColor[1], navyColor[2]);
+    doc.text('LINING / INNER LINER PROCUREMENT SPECIFICATION', 14, currentY);
+
+    const liningHeaders = [['PARAMETER', 'VALUE / OUTPUT', 'TECHNICAL SPECIFICATION DETAILS']];
+    const liningRows = [
+      ['Lining Fabric Archetype', liningFabricDesc || 'Polyester Lining', 'Approved lining fabric composition description.'],
+      ['Lining Scale Ratio', `${liningScalePct}% of Self Pattern`, 'Sizing scaling factor applied relative to the outer shell curves.'],
+      [`Lining Unit Consumption`, `${liningConsumption.toFixed(4)} ${isKnit ? 'KG/Doz' : 'Yds/Pc'}`, 'Lining consumption per core unit.'],
+      [`Total Lining Base Order`, `${liningTotalForOrder.toLocaleString('en-US', { maximumFractionDigits: 2 })} ${isKnit ? 'KG' : 'Yards'}`, 'Net bulk lining requirement based on size ratios.'],
+      [`Lining Purchase Qty (+Buffer)`, `${liningTotalWithBuffer.toLocaleString('en-US', { maximumFractionDigits: 2 })} ${isKnit ? 'KG' : 'Yards'}`, 'Procurement fabric quantity containing wastage allowance.']
+    ];
+
+    autoTable(doc, {
+      startY: currentY + 2,
+      head: liningHeaders,
+      body: liningRows,
+      theme: 'grid',
+      styles: { fontSize: 7.5, cellPadding: 2 },
+      headStyles: { fillColor: [51, 65, 85], textColor: [255, 255, 255], fontStyle: 'bold' }, // Dark slate blue
+      columnStyles: {
+        0: { fontStyle: 'bold', cellWidth: 50 },
+        1: { fontStyle: 'bold', textColor: [26, 60, 92], cellWidth: 50 },
+        2: { textColor: grayTextColor }
+      }
+    });
+    currentY = doc.lastAutoTable.finalY + 8;
+  }
+
+  // 5. INDUSTRIAL NESTING & ALIGNMENT PARAMETERS
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(10);
+  doc.setTextColor(navyColor[0], navyColor[1], navyColor[2]);
+  doc.text('NESTING, IN-GRAIN SHRINKAGE & MARKER UTILIZATION', 14, currentY);
+
+  const shrinkHeaders = [['MARKER UTILITY PARAMETER', 'SEWROOM DEF', 'AFFECT ON COMMERCIAL CODES']];
+  const shrinkRows = [
+    ['Lengthwise Fabric Shrinkage', `${shrinkageL}%`, `Directly increases body vertical lengths before CAD marker compilation.`],
+    ['Widthwise Fabric Shrinkage', `${shrinkageW}%`, `Directly expands horizontal body envelopes (chest/waist seam lines).`],
+    ['Compounded Shrinkage Offset', `+${(((1 + shrinkageL/100) * (1 + shrinkageW/100) - 1) * 100).toFixed(2)}%`, `Cumulative material scaling buffer applied to baseline specifications.`],
+    ['CAD Marker Nesting Efficiency', `${markerEfficiency}%`, `Represents fabric roll surface usage. Lower efficiency yields extra consumption.`],
+    ['Cutting Floor Wastage (WA%)', `${wastageRate}%`, `End bits, fabric faults, and sewing allowance remnants.`]
+  ];
+
+  autoTable(doc, {
+    startY: currentY + 2,
+    head: shrinkHeaders,
+    body: shrinkRows,
+    theme: 'grid',
+    styles: { fontSize: 8, cellPadding: 2 },
+    headStyles: { fillColor: orangeColor, textColor: [255, 255, 255], fontStyle: 'bold' },
+    columnStyles: {
+      0: { fontStyle: 'bold', cellWidth: 60 },
+      1: { fontStyle: 'bold', halign: 'center', cellWidth: 35 },
+      2: { textColor: grayTextColor }
+    }
+  });
+  
+  // Page Break if needed before Size Wise breakdown
+  currentY = doc.lastAutoTable.finalY + 8;
+  if (currentY > 210) {
+    doc.addPage();
+    currentY = 15;
+  }
+
+  // 6. SIZE-WISE ALLOCATION
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(10);
+  doc.setTextColor(navyColor[0], navyColor[1], navyColor[2]);
+  doc.text('GRADING SIZE-WISE MATRICES ALLOCATION', 14, currentY);
+
+  const sizeHeaders = [['SIZE SPEC', 'RATIO WEIGHT', 'ALLOCATED UNITS', 'SHELL ALLOCATION', includeLining ? 'LINING ALLOCATION' : null].filter(Boolean)];
+  
+  const sizeRows = sizeBreakdown.map(s => {
+    const row = [
+      s.size,
+      s.ratio,
+      `${s.pcs.toLocaleString()} pcs`,
+      `${s.tot.toLocaleString('en-US', { maximumFractionDigits: 2 })} ${isKnit ? 'KG' : 'Yds'}`
+    ];
+    if (includeLining) {
+      const liningSz = isKnit ? liningConsumption * (s.pcs / 12) : liningConsumption * s.pcs;
+      row.push(`${liningSz.toLocaleString('en-US', { maximumFractionDigits: 2 })} ${isKnit ? 'KG' : 'Yds'}`);
+    }
+    return row;
+  });
+
+  autoTable(doc, {
+    startY: currentY + 2,
     head: sizeHeaders,
     body: sizeRows,
     theme: 'grid',
@@ -150,85 +284,56 @@ export const generateConsumptionPDF = ({
       0: { fontStyle: 'bold', halign: 'center' },
       1: { halign: 'center' },
       2: { halign: 'center' },
-      3: { halign: 'right' }
+      3: { halign: 'right' },
+      4: { halign: 'right' }
     }
   });
 
-  // 4. Equation info
-  let currentY = doc.lastAutoTable.finalY + 6;
+  currentY = doc.lastAutoTable.finalY + 8;
+  if (currentY > 230) {
+    doc.addPage();
+    currentY = 15;
+  }
+
+  // 7. SPECIFICATION ALGORITHM FORMULA
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(9);
   doc.setTextColor(darkTextColor[0], darkTextColor[1], darkTextColor[2]);
-  doc.text('SPECIFICATION ALGORITHM FORMULA:', 14, currentY);
+  doc.text('CAD SPECIFICATION BLUEPRINT ALGORITHM:', 14, currentY);
   
   doc.setFont('courier', 'bold');
-  doc.setFontSize(8.5);
+  doc.setFontSize(8);
   doc.setTextColor(darkTextColor[0], darkTextColor[1], darkTextColor[2]);
   
-  // Wrap text nicely
   const formulaSplit = doc.splitTextToSize(currentG.formula || '', 180);
-  doc.text(formulaSplit, 14, currentY + 5);
+  doc.text(formulaSplit, 14, currentY + 4);
   
-  currentY = currentY + 7 + (formulaSplit.length * 3);
-
-  // 5. Tech Specification Spreadsheet
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(10);
-  doc.setTextColor(navyColor[0], navyColor[1], navyColor[2]);
-  doc.text('CAD SYSTEM PHYSICAL SPEC SHEET AND AUDIT VARIABLES', 14, currentY);
-
-  const specHeaders = [['VARIABLE ID', 'TECHNICAL DESCRIPTION', 'SPEC VALUE', 'UNIT TYPE']];
-  
-  const formattedSpecs = [];
-  currentG.meas.forEach(v => {
-    formattedSpecs.push([v.id, v.label + ' (Physical Dimension)', fieldVals[v.id] !== undefined ? fieldVals[v.id] : v.def, 'CM']);
-  });
-  currentG.allow.forEach(v => {
-    formattedSpecs.push([v.id, v.label + ' (Allowance/Ease)', fieldVals[v.id] !== undefined ? fieldVals[v.id] : v.def, 'CM']);
-  });
-  currentG.fabric.forEach(v => {
-    const u = v.id === 'WA' ? '%' : v.id === 'FabWidth' ? 'Inches' : 'g/m²';
-    formattedSpecs.push([v.id, v.label + ' (Fabric Parameter)', fieldVals[v.id] !== undefined ? fieldVals[v.id] : v.def, u]);
-  });
-
-  autoTable(doc, {
-    startY: currentY + 2,
-    head: specHeaders,
-    body: formattedSpecs,
-    theme: 'striped',
-    styles: { fontSize: 7.5, cellPadding: 1.5 },
-    headStyles: { fillColor: orangeColor, textColor: [255, 255, 255], fontStyle: 'bold' },
-    columnStyles: {
-      0: { fontStyle: 'bold', halign: 'center', cellWidth: 28 },
-      1: { halign: 'left' },
-      2: { halign: 'right', fontStyle: 'bold', cellWidth: 32 },
-      3: { halign: 'center', cellWidth: 24 }
-    }
-  });
+  currentY = currentY + 6 + (formulaSplit.length * 3);
 
   // Footer / Disclaimer
-  const endY = doc.lastAutoTable.finalY + 10;
   doc.setFont('helvetica', 'italic');
   doc.setFontSize(7.5);
   doc.setTextColor(grayTextColor[0], grayTextColor[1], grayTextColor[2]);
   
   const disclaimerText = [
-    'GarmentCalc Pro Commercial Workspace. This report is generated programmatically from standardized physical body envelope curves, CAD seam parameters, and bulk laying layouts.',
+    'GarmentCalc Pro Commercial Workspace. Generated programmatically from standardized physical body envelope curves, CAD seam parameters, and bulk laying layouts.',
     'Actual production consumption may vary slightly under nested marker layout efficiency setups and real fabric stretch tolerances. Signature below authorizes fabric procurement.'
   ];
-  doc.text(disclaimerText, 14, endY);
+  doc.text(disclaimerText, 14, currentY + 4);
 
   // Signature Block
-  const sigY = endY + 20;
-  if (sigY < 280) { // Keep on same page if it fits
-    doc.line(14, sigY, 70, sigY);
-    doc.text('Prepared By / Merchandiser', 14, sigY + 4);
+  const sigY = currentY + 22;
+  doc.setDrawColor(200, 205, 210);
+  doc.setLineWidth(0.4);
+  doc.line(14, sigY, 70, sigY);
+  doc.setFont('helvetica', 'normal');
+  doc.text(`Prepared By: ${merchandiserName || 'Merchandiser'}`, 14, sigY + 4);
 
-    doc.line(140, sigY, 196, sigY);
-    doc.text('Procurement Manager Approval', 140, sigY + 4);
-  }
+  doc.line(140, sigY, 196, sigY);
+  doc.text('Authorized Commercial Director', 140, sigY + 4);
 
   // Save/Download PDF
-  const filename = `Fab_Cons_${(currentG.sub || 'Product').replace(/[\s&/]+/g, '_')}_SpecSheet.pdf`;
+  const safeStyleName = (styleName || 'Product').replace(/[\s&/]+/g, '_');
+  const filename = `FabCons_Sheet_${safeStyleName}_PO_${poNumber || '00'}_Report.pdf`;
   doc.save(filename);
 };

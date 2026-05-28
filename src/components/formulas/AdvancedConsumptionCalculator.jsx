@@ -635,7 +635,7 @@ const AdvancedConsumptionCalculator = () => {
   // Basic States
   const [selectedMain, setSelectedMain] = useState("Upper Body Wear");
   const [selectedSub, setSelectedSub] = useState("T-Shirts");
-  const [activeFormTab, setActiveFormTab] = useState("meas"); // meas, allow, fabric, order
+  const [activeFormTab, setActiveFormTab] = useState("po"); // Default to Client/PO tab
 
   // Tree toggle states
   const [openMains, setOpenMains] = useState({ "Upper Body Wear": true });
@@ -644,6 +644,26 @@ const AdvancedConsumptionCalculator = () => {
   const currentG = useMemo(() => {
     return GARMENT_DB.find(g => g.main === selectedMain && g.sub === selectedSub) || GARMENT_DB[0];
   }, [selectedMain, selectedSub]);
+
+  // Spec sheet details missing from previous versions
+  const [styleName, setStyleName] = useState("ST-4402");
+  const [poNumber, setPoNumber] = useState("PO-2026-X88");
+  const [buyerName, setBuyerName] = useState("Nordstrom Inc.");
+  const [season, setSeason] = useState("Autumn/Winter 26");
+  const [merchandiserName, setMerchandiserName] = useState("Mustafa Rahman");
+
+  // Loss & nesting parameters (Shrinkage separate, Marker Efficiency separate)
+  const [shrinkageL, setShrinkageL] = useState(3.0);
+  const [shrinkageW, setShrinkageW] = useState(2.0);
+  const [markerEfficiency, setMarkerEfficiency] = useState(85.0);
+
+  // Separate lining calculation configs
+  const [includeLining, setIncludeLining] = useState(false);
+  const [liningFabricDesc, setLiningFabricDesc] = useState("Polyester Taffeta 190T");
+  const [liningScalePct, setLiningScalePct] = useState(90);
+
+  // saved calculations local history log
+  const [historyList, setHistoryList] = useState([]);
 
   // Form Fields State - initialized dynamically based on selected garment
   const [fieldVals, setFieldVals] = useState({});
@@ -668,8 +688,93 @@ const AdvancedConsumptionCalculator = () => {
         initialRatios[p.s] = p.r;
       });
       setSizeRatios(initialRatios);
+
+      // Auto-toggle lining on coats / jackets / suits sets to assist merchandisers
+      if (currentG.sub === "Jackets" || currentG.sub === "Coats" || currentG.sub === "Suits & Sets") {
+        setIncludeLining(true);
+      } else {
+        setIncludeLining(false);
+      }
     }
   }, [currentG]);
+
+  // Load history list on mount
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem("garmentcalc_advanced_history");
+      if (stored) {
+        setHistoryList(JSON.parse(stored));
+      }
+    } catch (e) {
+      console.error("Failed to load history list:", e);
+    }
+  }, []);
+
+  const saveToHistory = () => {
+    const newRecord = {
+      id: "calc-" + Date.now(),
+      savedAt: new Date().toISOString(),
+      styleName,
+      poNumber,
+      buyerName,
+      season,
+      merchandiserName,
+      selectedMain,
+      selectedSub,
+      fieldVals,
+      orderQty,
+      priceInr,
+      priceUsd,
+      sizeRatios,
+      shrinkageL,
+      shrinkageW,
+      markerEfficiency,
+      includeLining,
+      liningFabricDesc,
+      liningScalePct
+    };
+
+    const updated = [newRecord, ...historyList].slice(0, 30);
+    setHistoryList(updated);
+    localStorage.setItem("garmentcalc_advanced_history", JSON.stringify(updated));
+    showToast(`Saved calculations sheet for ${styleName || 'unnamed'} ✓`, "success");
+  };
+
+  const loadFromHistory = (rec) => {
+    if (rec.styleName !== undefined) setStyleName(rec.styleName);
+    if (rec.poNumber !== undefined) setPoNumber(rec.poNumber);
+    if (rec.buyerName !== undefined) setBuyerName(rec.buyerName);
+    if (rec.season !== undefined) setSeason(rec.season);
+    if (rec.merchandiserName !== undefined) setMerchandiserName(rec.merchandiserName);
+    
+    if (rec.selectedMain !== undefined) setSelectedMain(rec.selectedMain);
+    if (rec.selectedSub !== undefined) setSelectedSub(rec.selectedSub);
+    if (rec.fieldVals !== undefined) setFieldVals(rec.fieldVals);
+    if (rec.orderQty !== undefined) setOrderQty(rec.orderQty);
+    if (rec.priceInr !== undefined) setPriceInr(rec.priceInr);
+    if (rec.priceUsd !== undefined) setPriceUsd(rec.priceUsd);
+    if (rec.sizeRatios !== undefined) setSizeRatios(rec.sizeRatios);
+
+    if (rec.shrinkageL !== undefined) setShrinkageL(rec.shrinkageL);
+    if (rec.shrinkageW !== undefined) setShrinkageW(rec.shrinkageW);
+    if (rec.markerEfficiency !== undefined) setMarkerEfficiency(rec.markerEfficiency);
+
+    if (rec.includeLining !== undefined) setIncludeLining(rec.includeLining);
+    if (rec.liningFabricDesc !== undefined) setLiningFabricDesc(rec.liningFabricDesc);
+    if (rec.liningScalePct !== undefined) setLiningScalePct(rec.liningScalePct);
+
+    // Force open toggle of trees if main group is different
+    setOpenMains(prev => ({ ...prev, [rec.selectedMain]: true }));
+
+    showToast(`Loaded ${rec.styleName || 'Unnamed Style'} configuration!`, "success");
+  };
+
+  const deleteFromHistory = (id) => {
+    const filtered = historyList.filter(rec => rec.id !== id);
+    setHistoryList(filtered);
+    localStorage.setItem("garmentcalc_advanced_history", JSON.stringify(filtered));
+    showToast("Calculation log record removed", "info");
+  };
 
   // Sync qty logic
   const orderDoz = useMemo(() => {
@@ -710,21 +815,36 @@ const AdvancedConsumptionCalculator = () => {
       setPriceUsd("");
       setOrderQty(1200);
 
+      setStyleName("ST-4402");
+      setPoNumber("PO-2026-X88");
+      setBuyerName("Nordstrom Inc.");
+      setSeason("Autumn/Winter 26");
+      setMerchandiserName("Mustafa Rahman");
+      setShrinkageL(3.0);
+      setShrinkageW(2.0);
+      setMarkerEfficiency(85.0);
+      setIncludeLining(false);
+      setLiningFabricDesc("Polyester Taffeta 190T");
+      setLiningScalePct(90);
+
       showToast("Reset to pristine industry specifications ✓", "info");
     }
   };
 
-  // Safe formula evaluation logic
-  const calculatedResult = useMemo(() => {
+  // 1. BASE CAD NET CONSUMPTION (Evaluated with WA% = 0 to strip wastage for net CAD size)
+  const baseCadResult = useMemo(() => {
     if (!currentG || Object.keys(fieldVals).length === 0) return 0;
 
     // Helper to extract default/value
     const vars = {};
     [...currentG.meas, ...currentG.allow, ...currentG.fabric].forEach(f => {
-      vars[f.id] = fieldVals[f.id] !== undefined ? fieldVals[f.id] : f.def;
+      if (f.id === 'WA') {
+        vars[f.id] = 0; // Set WA to 0 and calculate pure CAD geometric footprint!
+      } else {
+        vars[f.id] = fieldVals[f.id] !== undefined ? fieldVals[f.id] : f.def;
+      }
     });
 
-    // Handle optional fields that might not be in definition but exist in variables
     const completeVars = {
       BL: 0, SL: 0, CW: 0, W: 0, PL: 0, HW: 0, WW: 0, SkirtL: 0, LEG_L: 0,
       BCP: 0, SHW: 0, NK: 0, CFL: 0, CFW: 0, WR: 0, AH: 0, HOOD: 0, HOODW: 0,
@@ -734,11 +854,10 @@ const AdvancedConsumptionCalculator = () => {
       FACING: 0, WELT: 0, WaistW: 0, HipW: 0, HEM_W: 0, PLEAT: 0, ZIP: 0,
       SA: 1.5, HEM: 2, SLH: 1.5, WB: 4, PLK: 0, CR_EXT: 0,
       EA_CW: 5, EA_BCP: 3, EA_HW: 3, EA_TH: 2, EA_SL: 0,
-      GSM: 180, FabWidth: 58, WA: 5,
+      GSM: 180, FabWidth: 58, WA: 0,
       ...vars
     };
 
-    // Sort variable names by length descending to match longest variable first
     const sortedKeys = Object.keys(completeVars).sort((a, b) => b.length - a.length);
     let replacedFormula = currentG.formula;
 
@@ -747,7 +866,6 @@ const AdvancedConsumptionCalculator = () => {
       replacedFormula = replacedFormula.replace(regex, completeVars[key]);
     });
 
-    // Check if evaluation string contains safe arithmetic syntax only
     if (/^[0-9+\-*/().\s]+$/.test(replacedFormula)) {
       try {
         const value = Function(`"use strict"; return (${replacedFormula})`)();
@@ -760,6 +878,33 @@ const AdvancedConsumptionCalculator = () => {
     return 0;
   }, [currentG, fieldVals]);
 
+  // Sizing adjust multipliers
+  const shrinkageMultiplier = useMemo(() => {
+    return (1 + (shrinkageL / 100)) * (1 + (shrinkageW / 100));
+  }, [shrinkageL, shrinkageW]);
+
+  const markerMultiplier = useMemo(() => {
+    return 100 / markerEfficiency;
+  }, [markerEfficiency]);
+
+  const wastageRate = useMemo(() => {
+    const waVal = fieldVals.WA !== undefined ? fieldVals.WA : (currentG.fabric.find(f => f.id === 'WA')?.def || 5);
+    return waVal;
+  }, [fieldVals, currentG]);
+
+  // 2. INDUSTRIAL TARGET CONSUMPTION (Compounding net CAD with separate Shrinkage, Nesting (Marker Efficiency) % and WA % wasting)
+  const calculatedResult = useMemo(() => {
+    const baseWithShrinkageAndMarker = baseCadResult * shrinkageMultiplier * markerMultiplier;
+    return baseWithShrinkageAndMarker * (1 + wastageRate / 100);
+  }, [baseCadResult, shrinkageMultiplier, markerMultiplier, wastageRate]);
+
+  // 3. SEPARATE LINING FABRIC CALCULATIONS (For suits, outerwear or dress linings)
+  const liningConsumption = useMemo(() => {
+    if (!includeLining) return 0;
+    // Lining mirrors the basic CAD pattern minus some collar/cuff additions, standard ratio matches 80-100%
+    return baseCadResult * (liningScalePct / 100);
+  }, [includeLining, baseCadResult, liningScalePct]);
+
   // Aggregate Metrics
   const isKnit = currentG.type === 'knit';
   const totalForOrder = useMemo(() => {
@@ -769,6 +914,14 @@ const AdvancedConsumptionCalculator = () => {
   const bufferQty = useMemo(() => {
     return totalForOrder * 1.05;
   }, [totalForOrder]);
+
+  const liningTotalForOrder = useMemo(() => {
+    return isKnit ? liningConsumption * orderDoz : liningConsumption * orderQty;
+  }, [liningConsumption, isKnit, orderDoz, orderQty]);
+
+  const liningTotalWithBuffer = useMemo(() => {
+    return liningTotalForOrder * (1 + wastageRate / 100);
+  }, [liningTotalForOrder, wastageRate]);
 
   const rawInrVal = parseFloat(priceInr) || 0;
   const rawUsdVal = parseFloat(priceUsd) || 0;
@@ -780,6 +933,41 @@ const AdvancedConsumptionCalculator = () => {
   const costUsd = useMemo(() => {
     return totalForOrder * rawUsdVal;
   }, [totalForOrder, rawUsdVal]);
+
+  // Live validation warnings
+  const liveWarnings = useMemo(() => {
+    const alerts = [];
+    const blVal = fieldVals.BL || fieldVals.PL || fieldVals.SkirtL || fieldVals.PL || 0;
+    if (blVal === 0) {
+      alerts.push("Warning: Critical pattern length is set to 0. Sizing formulas require geometric values.");
+    } else if (blVal > 0 && blVal < 20) {
+      alerts.push("Warning: Finished garment length represents an extremely tiny specimen (< 20cm).");
+    }
+
+    const cwVal = fieldVals.CW || fieldVals.HW || fieldVals.WW || 0;
+    if (cwVal > 0 && cwVal < 15) {
+      alerts.push("Warning: Horizontal width limits appear unrealistically small (< 15cm). Verify pattern boundaries.");
+    }
+
+    const rollWidth = fieldVals.FabWidth || 0;
+    if (!isKnit) {
+      if (rollWidth === 0) {
+        alerts.push("Action Required: Roll layout width is 0. Woven consumption reports will divide-by-zero.");
+      } else if (rollWidth > 0 && rollWidth < 25) {
+        alerts.push("Warning: Roll width represents narrow trimmings or ribbon specs instead of standard cloth raw materials.");
+      }
+    }
+
+    if (shrinkageL > 12 || shrinkageW > 12) {
+      alerts.push("Nesting Audit Notice: Exceeding 12% fabric shrinkage indicates highly unstable bulk fiber construction.");
+    }
+
+    if (markerEfficiency < 65) {
+      alerts.push("Nesting Alert: Marker utilization below 65% triggers high layout material wastage warnings.");
+    }
+
+    return alerts;
+  }, [fieldVals, shrinkageL, shrinkageW, markerEfficiency, isKnit]);
 
   // Size ratio breakdown calculation
   const sizeBreakdown = useMemo(() => {
@@ -910,7 +1098,29 @@ const AdvancedConsumptionCalculator = () => {
         sizeBreakdown,
         isKnit,
         totalForOrder,
-        bufferQty
+        bufferQty,
+        
+        // Custom Metadata
+        styleName,
+        poNumber,
+        buyerName,
+        season,
+        merchandiserName,
+        
+        // Custom Variables
+        shrinkageL,
+        shrinkageW,
+        markerEfficiency,
+        wastageRate,
+        baseCadResult,
+        
+        // Linings
+        includeLining,
+        liningFabricDesc,
+        liningScalePct,
+        liningConsumption,
+        liningTotalForOrder,
+        liningTotalWithBuffer
       });
       showToast("Consumption PDF dispatched successfully ✓", "success");
     } catch (error) {
@@ -1068,30 +1278,137 @@ const AdvancedConsumptionCalculator = () => {
             </div>
 
             {/* Form tabs */}
-            <div className="flex bg-gray-55/60 p-1 rounded-xl border border-gray-100 gap-1 bg-gray-100/50">
+            <div className="grid grid-cols-5 bg-gray-100/60 p-1 rounded-2xl border border-gray-100 gap-1 select-none">
               {[
-                { id: 'meas', name: 'Body Specs' },
-                { id: 'allow', name: 'Allowances' },
-                { id: 'fabric', name: 'Fabric' },
-                { id: 'order', name: 'Order & Sizes' }
-              ].map(t => (
-                <button
-                  key={t.id}
-                  onClick={() => setActiveFormTab(t.id)}
-                  className={`flex-1 text-center py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all duration-150 cursor-pointer ${
-                    activeFormTab === t.id 
-                      ? 'bg-white text-[#1A3C5C] shadow-sm font-extrabold'
-                      : 'text-gray-450 hover:text-gray-700'
-                  }`}
-                >
-                  {t.name}
-                </button>
-              ))}
+                { id: 'po', name: 'Client/PO', icon: FileText },
+                { id: 'meas', name: 'Body Specs', icon: Layers },
+                { id: 'allow', name: 'Allowances', icon: Scale },
+                { id: 'fabric', name: 'Fibers/Nest', icon: Activity },
+                { id: 'order', name: 'Order/Grades', icon: Package }
+              ].map(t => {
+                const IconComponent = t.icon;
+                const isActive = activeFormTab === t.id;
+                return (
+                  <button
+                    key={t.id}
+                    onClick={() => setActiveFormTab(t.id)}
+                    className={`flex flex-col lg:flex-row lg:gap-2 items-center justify-center py-2 px-1.5 rounded-xl transition-all duration-200 cursor-pointer ${
+                      isActive 
+                        ? 'bg-white text-[#1A3C5C] shadow-xs ring-1 ring-black/5 font-extrabold'
+                        : 'text-gray-500 hover:text-[#1A3C5C] hover:bg-white/40'
+                    }`}
+                  >
+                    <IconComponent size={12} className={isActive ? 'text-[#E8622A]' : 'text-gray-400'} />
+                    <span className="truncate hidden lg:inline text-[10px] font-black uppercase tracking-wider">{t.name}</span>
+                    <span className="truncate lg:hidden text-[9px] font-black uppercase tracking-wider">
+                      {t.id === 'po' ? 'PO' : t.id === 'meas' ? 'Specs' : t.id === 'allow' ? 'Allow' : t.id === 'fabric' ? 'Nest' : 'Grades'}
+                    </span>
+                  </button>
+                );
+              })}
             </div>
 
             {/* Tab Panes */}
             <div className="space-y-3 max-h-[380px] overflow-y-auto pr-1 no-scrollbar">
               
+              {activeFormTab === 'po' && (
+                <div className="space-y-3.5">
+                  <div className="text-[9px] font-bold text-gray-400 uppercase tracking-widest border-b border-dashed border-gray-100 pb-1 font-mono">Client Contract & Purchase Order Metadata</div>
+                  
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-1 bg-gray-50/50 p-2 border border-gray-100/50 rounded-xl">
+                      <label className="text-[10px] font-black text-[#1A3C5C] uppercase tracking-wide">Style Code/Ref</label>
+                      <input 
+                        type="text"
+                        value={styleName}
+                        onChange={(e) => setStyleName(e.target.value)}
+                        className="w-full bg-white border border-gray-200 rounded-lg px-2 py-1 text-xs font-bold text-[#1A3C5C] outline-none focus:border-[#E8622A]"
+                      />
+                    </div>
+                    <div className="space-y-1 bg-gray-50/50 p-2 border border-gray-100/50 rounded-xl">
+                      <label className="text-[10px] font-black text-[#1A3C5C] uppercase tracking-wide">PO Number</label>
+                      <input 
+                        type="text"
+                        value={poNumber}
+                        onChange={(e) => setPoNumber(e.target.value)}
+                        className="w-full bg-white border border-gray-200 rounded-lg px-2 py-1 text-xs font-bold text-[#1A3C5C] outline-none focus:border-[#E8622A]"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-1 bg-gray-50/50 p-2 border border-gray-100/50 rounded-xl">
+                      <label className="text-[10px] font-black text-[#1A3C5C] uppercase tracking-wide">Buyer Partner</label>
+                      <input 
+                        type="text"
+                        value={buyerName}
+                        onChange={(e) => setBuyerName(e.target.value)}
+                        className="w-full bg-white border border-gray-200 rounded-lg px-2 py-1 text-xs font-bold text-[#1A3C5C] outline-none focus:border-[#E8622A]"
+                      />
+                    </div>
+                    <div className="space-y-1 bg-gray-50/50 p-2 border border-gray-100/50 rounded-xl">
+                      <label className="text-[10px] font-black text-[#1A3C5C] uppercase tracking-wide">Target Season</label>
+                      <input 
+                        type="text"
+                        value={season}
+                        onChange={(e) => setSeason(e.target.value)}
+                        className="w-full bg-white border border-gray-200 rounded-lg px-2 py-1 text-xs font-bold text-[#1A3C5C] outline-none focus:border-[#E8622A]"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="space-y-1 bg-gray-50/50 p-2 border border-gray-100/50 rounded-xl">
+                    <label className="text-[10px] font-black text-[#1A3C5C] uppercase tracking-wide">Responsible Merchandiser</label>
+                    <input 
+                      type="text"
+                      value={merchandiserName}
+                      placeholder="Enter name to stamp signature card"
+                      onChange={(e) => setMerchandiserName(e.target.value)}
+                      className="w-full bg-white border border-gray-200 rounded-lg px-2 py-1 text-xs font-bold text-[#1A3C5C] outline-none focus:border-[#E8622A]"
+                    />
+                  </div>
+
+                  <div className="border-t border-gray-150 pt-3 space-y-2.5">
+                    <button
+                      onClick={saveToHistory}
+                      className="w-full py-2 bg-[#1A3C5C] hover:bg-[#244b70] text-white text-[10px] font-black uppercase tracking-wider rounded-xl flex items-center justify-center gap-1.5 shadow-md cursor-pointer transition-colors"
+                    >
+                      <FolderOpen size={12} /> Save Specifications to Local History
+                    </button>
+
+                    {historyList.length > 0 && (
+                      <div className="space-y-1.5">
+                        <span className="text-[9px] font-black text-gray-400 uppercase tracking-widest block font-mono">Offline-First CAD Ledger ({historyList.length})</span>
+                        <div className="max-h-[120px] overflow-y-auto border border-gray-150 rounded-2xl bg-white divide-y divide-gray-100 no-scrollbar pr-1 shadow-inner">
+                          {historyList.map(rec => (
+                            <div key={rec.id} className="flex items-center justify-between p-2.5 hover:bg-gray-50 transition-colors">
+                              <button 
+                                onClick={() => loadFromHistory(rec)}
+                                className="flex-1 text-left cursor-pointer group"
+                              >
+                                <div className="text-[10px] font-black text-[#1A3C5C] group-hover:text-[#E8622A] transition-colors">
+                                  {rec.styleName || "Unnamed"} · <span className="text-gray-400 italic">({rec.selectedSub})</span>
+                                </div>
+                                <div className="text-[8px] text-gray-400 font-bold">
+                                  PO: {rec.poNumber || "N/A"} · Buyer: {rec.buyerName || "N/A"}
+                                </div>
+                              </button>
+                              <button 
+                                onClick={() => deleteFromHistory(rec.id)}
+                                className="p-1 text-gray-300 hover:text-red-500 rounded transition-colors cursor-pointer text-xs leading-none font-bold"
+                                title="Delete Log Record"
+                              >
+                                &times;
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
               {activeFormTab === 'meas' && (
                 <div className="space-y-3.5">
                   <div className="text-[9px] font-bold text-gray-400 uppercase tracking-widest border-b border-dashed border-gray-100 pb-1">Garment Physical Dimensions</div>
@@ -1146,7 +1463,8 @@ const AdvancedConsumptionCalculator = () => {
 
               {activeFormTab === 'fabric' && (
                 <div className="space-y-3.5">
-                  <div className="text-[9px] font-bold text-gray-400 uppercase tracking-widest border-b border-dashed border-gray-100 pb-1">Fabric & Wastage Mechanics</div>
+                  <div className="text-[9px] font-bold text-gray-400 uppercase tracking-widest border-b border-dashed border-gray-100 pb-1">Fabric & Splicing Nesting Parameters</div>
+                  
                   {currentG.fabric.map(f => {
                     const unitLabel = f.id === 'WA' ? '%' : f.id === 'FabWidth' ? 'Inches' : 'g/m²';
                     return (
@@ -1168,6 +1486,98 @@ const AdvancedConsumptionCalculator = () => {
                       </div>
                     );
                   })}
+
+                  <div className="border-t border-gray-150 pt-3 space-y-3">
+                    <div className="text-[9px] font-bold text-[#1A3C5C] uppercase tracking-widest block font-mono">In-Grain Fabric Shrinkage Allowance</div>
+                    
+                    <div className="grid grid-cols-2 gap-3.5">
+                      <div className="space-y-1 bg-gray-50/50 p-2 border border-gray-100/50 rounded-xl">
+                        <label className="text-[10px] font-black text-gray-600 uppercase tracking-wide">Lengthwise Shrink %</label>
+                        <input 
+                          type="number"
+                          step="0.1"
+                          value={shrinkageL}
+                          onChange={(e) => setShrinkageL(Math.max(0, parseFloat(e.target.value) || 0))}
+                          className="w-full bg-white border border-gray-200 rounded px-2 py-0.5 text-xs font-bold text-[#1A3C5C]"
+                        />
+                      </div>
+                      <div className="space-y-1 bg-gray-50/50 p-2 border border-gray-100/50 rounded-xl">
+                        <label className="text-[10px] font-black text-gray-600 uppercase tracking-wide">Widthwise Shrink %</label>
+                        <input 
+                          type="number"
+                          step="0.1"
+                          value={shrinkageW}
+                          onChange={(e) => setShrinkageW(Math.max(0, parseFloat(e.target.value) || 0))}
+                          className="w-full bg-white border border-gray-200 rounded px-2 py-0.5 text-xs font-bold text-[#1A3C5C]"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="space-y-1 bg-gray-50/50 p-2.5 border border-gray-100 rounded-xl">
+                      <div className="flex justify-between items-center text-[10px] font-black text-[#1A3C5C] uppercase">
+                        <span>Marker Efficiency Layout</span>
+                        <span className="text-[#E8622A]">{markerEfficiency}%</span>
+                      </div>
+                      <input 
+                        type="range"
+                        min="50"
+                        max="100"
+                        step="0.5"
+                        value={markerEfficiency}
+                        onChange={(e) => setMarkerEfficiency(parseFloat(e.target.value))}
+                        className="w-full accent-[#E8622A] h-1.5 bg-gray-200 rounded-lg cursor-pointer"
+                      />
+                      <p className="text-[8px] text-gray-400 font-bold">Standard marker laying wraps utilize 82% to 91% of fabric roll area.</p>
+                    </div>
+                  </div>
+
+                  <div className="border-t border-gray-150 pt-3 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <label className="text-[10px] font-black text-[#1A3C5C] uppercase tracking-wide flex items-center gap-1.5 select-none cursor-pointer">
+                        <input 
+                          type="checkbox"
+                          checked={includeLining}
+                          onChange={(e) => setIncludeLining(e.target.checked)}
+                          className="rounded text-[#E8622A] focus:ring-[#E8622A] h-3.5 w-3.5"
+                        />
+                        <span>Separate Lining Calculation</span>
+                      </label>
+                      <span className="px-1.5 py-0.5 bg-purple-50 text-purple-700 text-[8px] font-black rounded uppercase">Interfacing / Liners</span>
+                    </div>
+
+                    {includeLining && (
+                      <motion.div
+                        initial={{ opacity: 0, height: 0 }}
+                        animate={{ opacity: 1, height: "auto" }}
+                        className="p-3 bg-gray-50 border border-gray-100 rounded-2xl space-y-2.5"
+                      >
+                        <div className="space-y-1">
+                          <label className="text-[9px] font-black text-gray-500 uppercase tracking-wider block">Lining Fabric GSM/Description</label>
+                          <input 
+                            type="text"
+                            value={liningFabricDesc}
+                            onChange={(e) => setLiningFabricDesc(e.target.value)}
+                            className="w-full bg-white border border-gray-200 rounded px-2.5 py-0.5 text-xs font-black text-[#1A3C5C]"
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <div className="flex justify-between items-center text-[9px] font-black text-gray-500 uppercase tracking-wider">
+                            <span>Lining Pattern Scale</span>
+                            <span className="font-bold text-[#1A3C5C]">{liningScalePct}% of Self</span>
+                          </div>
+                          <input 
+                            type="range"
+                            min="50"
+                            max="120"
+                            value={liningScalePct}
+                            onChange={(e) => setLiningScalePct(parseInt(e.target.value))}
+                            className="w-full accent-[#1A3C5C] h-1 bg-gray-200 rounded cursor-pointer"
+                          />
+                          <p className="text-[8px] text-gray-400 font-bold">Adjusts inner body consumption proportional to primary shell.</p>
+                        </div>
+                      </motion.div>
+                    )}
+                  </div>
                 </div>
               )}
 
@@ -1198,7 +1608,7 @@ const AdvancedConsumptionCalculator = () => {
 
                   <div className="grid grid-cols-2 gap-3.5">
                     <div className="space-y-1">
-                      <label className="text-[10px] font-black text-[#1A3C5C] uppercase tracking-wide">Yarn Price (₹/unit)</label>
+                      <label className="text-[10px] font-black text-[#1A3C5C] uppercase tracking-wide">Fabric Cost (₹/unit)</label>
                       <input 
                         type="number"
                         value={priceInr}
@@ -1267,33 +1677,48 @@ const AdvancedConsumptionCalculator = () => {
 
         </div>
 
-        {/* Right column: Interactive Results & Breakdown Analysis [lg:col-span-5] */}
-        <div className="lg:col-span-5 p-6 bg-gray-50/20 flex flex-col justify-between space-y-8 max-h-[660px] overflow-y-auto no-scrollbar">
+         {/* Right column: Interactive Results & Breakdown Analysis [lg:col-span-5] */}
+        <div className="lg:col-span-12 xl:col-span-5 p-6 bg-gray-50/20 flex flex-col justify-between space-y-6 max-h-[660px] overflow-y-auto no-scrollbar">
           
           {/* Main big visual cards */}
-          <div className="space-y-6">
+          <div className="space-y-5">
             
             <div className="flex items-center justify-between border-b border-gray-150 pb-3">
               <div>
                 <h3 className="text-sm font-black text-[#1A3C5C] uppercase tracking-wider">Metrics Output</h3>
-                <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">Audited system calculations</p>
+                <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">Audited material consumption</p>
               </div>
               <span className="text-[10px] font-bold text-gray-400 flex items-center gap-1">
-                <Activity size={12} className="text-[#E8622A]" /> Real-time active compilation
+                <Activity size={12} className="text-[#E8622A] animate-pulse" /> Live active compile
               </span>
             </div>
+
+            {/* Pattern warnings list */}
+            {liveWarnings.length > 0 && (
+              <div className="bg-amber-50 border border-amber-200 rounded-2xl p-3.5 space-y-1.5 shadow-sm">
+                <div className="flex items-center gap-1.5 text-[10px] font-black text-amber-850 uppercase tracking-widest font-mono">
+                  <span className="w-2 h-2 rounded-full bg-amber-500 animate-ping inline-block" />
+                  <span>CAD VERIFICATION WARNINGS ({liveWarnings.length})</span>
+                </div>
+                <ul className="list-disc pl-4 text-[9px] text-amber-700 font-bold space-y-1.5 leading-tight">
+                  {liveWarnings.map((warning, idx) => (
+                    <li key={idx}>{warning}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
 
             {/* Visual block cards */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               
               {/* Card 1: Per Unit Cons */}
               <div className="bg-[#1A3C5C] text-white p-4 rounded-3xl relative overflow-hidden shadow-md flex flex-col justify-between h-28">
-                <div className="text-[9px] font-black text-gray-300 uppercase tracking-widest block">{currentG.unit} Spec</div>
+                <div className="text-[9px] font-black text-gray-300 uppercase tracking-widest block">{currentG.unit} Spec (Self)</div>
                 <div className="text-3xl font-black font-serif italic text-white my-1">
                   {calculatedResult ? calculatedResult.toFixed(3) : "—"}
                 </div>
                 <div className="text-[10px] text-gray-300 font-bold uppercase tracking-wider flex items-center gap-1 leading-none mt-1">
-                  <span className="w-1.5 h-1.5 rounded-full bg-green-500" />
+                  <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
                   <span>per {currentG.unit === 'KG/Dozen' ? 'dozen garments' : 'style piece'}</span>
                 </div>
                 
@@ -1309,14 +1734,63 @@ const AdvancedConsumptionCalculator = () => {
                   <span className="text-xs font-black text-gray-400 uppercase ml-1">{isKnit ? 'KG' : 'Yards'}</span>
                 </div>
                 <div className="text-[10px] text-gray-400 font-bold uppercase tracking-wider flex items-start gap-1 leading-none mt-1">
-                  <span>Including bulk allocation parameters</span>
+                  <span>Including shrinkage & marker losses</span>
                 </div>
               </div>
 
             </div>
 
+            {/* Separate Lining material summary if enabled */}
+            {includeLining && (
+              <motion.div 
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                className="bg-purple-50/50 border border-purple-100 p-4 rounded-3xl shadow-sm flex items-center justify-between text-left"
+              >
+                <div>
+                  <span className="px-1.5 py-0.5 bg-[#1F1D36] text-white text-[8px] font-black rounded uppercase tracking-wider">Liner Fabric Specs</span>
+                  <div className="text-xs text-[#1A3C5C] font-black mt-1 max-w-[180px] truncate">{liningFabricDesc}</div>
+                </div>
+                <div className="text-right">
+                  <span className="text-[9px] font-black text-gray-400 uppercase block">Total Liner Target</span>
+                  <div className="text-lg font-black text-[#1A3C5C]">
+                    {liningTotalWithBuffer ? liningTotalWithBuffer.toLocaleString('en-US', { maximumFractionDigits: 2 }) : "—"}
+                    <span className="text-[10px] text-gray-405 font-black ml-1">{isKnit ? 'KG' : 'Yards'}</span>
+                  </div>
+                  <span className="text-[8px] text-gray-400 block font-bold">Cons: {liningConsumption.toFixed(3)} u / Ratio: {liningScalePct}%</span>
+                </div>
+              </motion.div>
+            )}
+
+            {/* Splicing Nesting Loss Breakdown cascade */}
+            <div className="bg-white rounded-3xl border border-gray-100 shadow-sm p-4 space-y-3">
+              <span className="text-[10px] font-black text-[#1A3C5C] uppercase tracking-wider block border-b border-gray-50 pb-1 font-mono">CAD Nesting Cascade Loss Breakdown</span>
+              <div className="grid grid-cols-2 gap-3 text-[10px]">
+                <div className="p-2 border border-gray-50 bg-gray-50/40 rounded-xl space-y-1">
+                  <span className="text-[8px] text-gray-400 uppercase font-black block">1. Net CAD Envelope</span>
+                  <span className="font-mono font-black text-gray-750">{baseCadResult.toFixed(3)} {currentG.unit === 'KG/Dozen' ? 'KG/Doz' : 'Yds/Pc'}</span>
+                  <span className="text-[8px] text-gray-400 block font-bold">Wastage set to 0%</span>
+                </div>
+                <div className="p-2 border border-gray-50 bg-gray-50/40 rounded-xl space-y-1">
+                  <span className="text-[8px] text-gray-400 uppercase font-black block">2. In-Grain Shrinkage</span>
+                  <span className="font-mono font-black text-[#E8622A]">{((shrinkageMultiplier - 1) * 100).toFixed(1)}% (+{(baseCadResult * (shrinkageMultiplier - 1)).toFixed(3)})</span>
+                  <span className="text-[8px] text-gray-400 block font-bold">L: {shrinkageL}% | W: {shrinkageW}%</span>
+                </div>
+                <div className="p-2 border border-gray-50 bg-gray-50/40 rounded-xl space-y-1">
+                  <span className="text-[8px] text-gray-400 uppercase font-black block">3. Marker Spacing (Efficiency)</span>
+                  <span className="font-mono font-black text-purple-600">{(100 - markerEfficiency).toFixed(1)}% (+{(baseCadResult * shrinkageMultiplier * (markerMultiplier - 1)).toFixed(3)})</span>
+                  <span className="text-[8px] text-gray-400 block font-bold">Efficiency: {markerEfficiency}%</span>
+                </div>
+                <div className="p-2 border border-gray-50 bg-gray-50/40 rounded-xl space-y-1">
+                  <span className="text-[8px] text-gray-400 uppercase font-black block">4. Cutting Waste Allowance</span>
+                  <span className="font-mono font-black text-[#1A3C5C]">{wastageRate}% (+{(baseCadResult * shrinkageMultiplier * markerMultiplier * (wastageRate / 100)).toFixed(3)})</span>
+                  <span className="text-[8px] text-gray-400 block font-bold">Cutting end bits</span>
+                </div>
+              </div>
+            </div>
+
             {/* Secondary metrics row */}
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+            <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
               <div className="bg-white border border-gray-100 p-3 rounded-2xl shadow-sm text-left">
                 <span className="text-[9px] font-black text-gray-400 uppercase tracking-widest block">+5% Buffer</span>
                 <span className="text-sm font-black text-[#1A3C5C]">{bufferQty ? bufferQty.toLocaleString('en-US', { maximumFractionDigits: 2 }) : "—"}</span>
@@ -1336,10 +1810,10 @@ const AdvancedConsumptionCalculator = () => {
                 </span>
               </div>
 
-              <div className="bg-white border border-gray-100 p-3 rounded-2xl shadow-sm text-left col-span-2 md:col-span-1">
+              <div className="bg-white border border-gray-100 p-3 rounded-2xl shadow-sm text-left col-span-2 lg:col-span-1">
                 <span className="text-[9px] font-black text-gray-400 uppercase tracking-widest block">Applied Wastage</span>
-                <span className="text-sm font-black text-[#E8622A]">{fieldVals.WA || currentG.fabric.find(f => f.id === 'WA')?.def}%</span>
-                <span className="text-[9px] text-gray-400 font-bold uppercase tracking-wider block">Allowance multiplier</span>
+                <span className="text-sm font-black text-[#E8622A]">{wastageRate}%</span>
+                <span className="text-[9px] text-gray-400 font-bold uppercase tracking-wider block">Allowance parameter</span>
               </div>
             </div>
 
@@ -1377,7 +1851,7 @@ const AdvancedConsumptionCalculator = () => {
                     <div key={item.size} className="space-y-1">
                       <div className="flex justify-between items-center text-[10px] font-bold">
                         <span className="text-[#1A3C5C] font-black">{item.size}</span>
-                        <span className="text-gray-400 uppercase font-black">
+                        <span className="text-gray-400 uppercase font-black font-mono">
                           {item.pcs.toLocaleString()} pcs · {item.tot.toFixed(1)} {isKnit ? 'kg' : 'yds'}
                         </span>
                       </div>
@@ -1400,15 +1874,15 @@ const AdvancedConsumptionCalculator = () => {
                 <span className="px-2 py-0.5 bg-gray-100 text-gray-500 text-[8px] font-black rounded-full uppercase tracking-wider">Specs breakdown</span>
               </div>
               
-              <div className="max-h-[160px] overflow-y-auto divide-y divide-gray-50 no-scrollbar">
+              <div className="max-h-[140px] overflow-y-auto divide-y divide-gray-50 no-scrollbar">
                 {[...currentG.meas, ...currentG.allow, ...currentG.fabric].map(v => (
                   <div key={v.id} className="px-5 py-2.5 flex items-center justify-between hover:bg-gray-50 transition-colors">
                     <div className="flex items-center gap-2">
                       <span className="font-mono text-[10px] font-black text-[#E8622A]">{v.id}</span>
-                      <span className="text-[11px] font-bold text-gray-600 leading-none">{v.label}</span>
+                      <span className="text-[11px] font-bold text-gray-650 leading-none">{v.label}</span>
                     </div>
-                    <span className="font-mono text-[11px] font-bold text-[#1A3C5C]">
-                      {fieldVals[v.id] !== undefined ? fieldVals[v.id] : v.def}
+                    <span className="font-mono text-[11px] font-black text-[#1A3C5C]">
+                      {(v.id === 'WA' ? wastageRate : (fieldVals[v.id] !== undefined ? fieldVals[v.id] : v.def))}
                     </span>
                   </div>
                 ))}
@@ -1421,20 +1895,20 @@ const AdvancedConsumptionCalculator = () => {
           <div className="pt-4 border-t border-gray-200 grid grid-cols-3 gap-3">
             <button 
               onClick={exportCSV}
-              className="flex items-center justify-center gap-1.5 py-2 rounded-xl border border-gray-200 hover:border-[#1A3C5C] bg-white text-[10px] text-gray-505 hover:text-[#1A3C5C] uppercase font-black tracking-wider transition-all cursor-pointer"
+              className="flex items-center justify-center gap-1.5 py-2.5 rounded-xl border border-gray-200 hover:border-[#1A3C5C] hover:bg-gray-50 bg-white text-[10px] text-gray-505 hover:text-[#1A3C5C] uppercase font-black tracking-wider transition-all cursor-pointer shadow-sm"
             >
               <Download size={12} /> CSV
             </button>
             <button 
               onClick={exportPDF}
-              className="flex items-center justify-center gap-1.5 py-2 rounded-xl border border-gray-200 hover:border-[#E8622A]/80 hover:bg-[#E8622A]/5 bg-white text-[10px] text-gray-505 hover:text-[#E8622A] uppercase font-black tracking-wider transition-all cursor-pointer"
+              className="flex items-center justify-center gap-1.5 py-2.5 rounded-xl border border-gray-200 hover:border-[#E8622A]/80 hover:bg-[#E8622A]/5 bg-white text-[10px] text-gray-505 hover:text-[#E8622A] uppercase font-black tracking-wider transition-all cursor-pointer shadow-sm"
               title="Generate printable PDF specs document"
             >
               <Printer size={12} /> Print/PDF
             </button>
             <button 
               onClick={copySummaryText}
-              className="flex items-center justify-center gap-1.5 py-2 rounded-xl bg-[#1A3C5C] text-white hover:bg-[#244b70] text-[10px] uppercase font-black tracking-wider transition-all cursor-pointer shadow-sm"
+              className="flex items-center justify-center gap-1.5 py-2.5 rounded-xl bg-[#1A3C5C] text-white hover:bg-[#244b70] text-[10px] uppercase font-black tracking-wider transition-all cursor-pointer shadow-sm"
             >
               <Copy size={12} /> Copy Summary
             </button>
