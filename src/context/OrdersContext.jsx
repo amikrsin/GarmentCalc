@@ -10,24 +10,37 @@ export const useOrders = () => {
 };
 
 export const OrdersProvider = ({ children }) => {
-  const [orders, setOrders] = useState([]);
+  const [orders, setOrders] = useState(() => {
+    const savedOrders = loadFromStorage('garmentcalc_orders', []);
+    return Array.isArray(savedOrders) ? savedOrders : [];
+  });
   const [activeFilter, setActiveFilter] = useState('All');
   const [activeBuyer, setActiveBuyer] = useState('All Buyers');
   const [sortBy, setSortBy] = useState('Ship Date ↑');
   const [searchQuery, setSearchQuery] = useState('');
 
-  // Load orders on mount
-  useEffect(() => {
-    const savedOrders = loadFromStorage('garmentcalc_orders');
-    if (savedOrders) {
-      setOrders(savedOrders);
-    }
-  }, []);
-
   // Save orders on change
   useEffect(() => {
     saveToStorage('garmentcalc_orders', orders);
   }, [orders]);
+
+  const activeOrdersCount = orders.filter((o) => !o.isArchived).length;
+
+  const restoreOrders = useCallback((importedOrders, mode = 'replace') => {
+    if (!Array.isArray(importedOrders)) return 0;
+    if (mode === 'merge') {
+      let addedCount = 0;
+      setOrders((prev) => {
+        const existingIds = new Set(prev.map((o) => o.id));
+        const newOnes = importedOrders.filter((o) => !existingIds.has(o.id));
+        addedCount = newOnes.length;
+        return [...newOnes, ...prev];
+      });
+      return addedCount;
+    }
+    setOrders(importedOrders);
+    return importedOrders.length;
+  }, []);
 
   const createOrder = (basicInfo) => {
     const newOrder = {
@@ -476,6 +489,8 @@ export const OrdersProvider = ({ children }) => {
 
   const value = {
     orders,
+    activeOrdersCount,
+    restoreOrders,
     createOrder,
     updateOrder,
     deleteOrder,

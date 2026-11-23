@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import CostingInputs from './CostingInputs';
 import CostingOutputs from './CostingOutputs';
 import { useApp } from '../../context/AppContext';
@@ -12,6 +12,7 @@ import {
 import { calculateAutoConsumption } from '../../utils/consumptionFormula';
 import { generateCostingPDF } from './CostingPDF';
 import { generateQuotationExcel } from './quotationExcel';
+import { getTrimLineCost, getSafeEmbellishmentCost } from '../../utils/orderCostingSummary';
 import { motion } from 'motion/react';
 import { saveToStorage, removeFromStorage } from '../../utils/storage';
 
@@ -25,7 +26,9 @@ const CostingModule = ({ restoreData, onRestored, isOrderContext = false, orderI
     fabricConsumptionFromFormula, 
     setFabricConsumptionFromFormula, 
     triggerSaveIndicator, 
-    preferences
+    preferences,
+    isPro,
+    openUpgradeModal
   } = useApp();
   const { showToast } = useToast();
   const { orders, updateOrder } = useOrders();
@@ -167,18 +170,27 @@ const CostingModule = ({ restoreData, onRestored, isOrderContext = false, orderI
     return base;
   }, [preferences, order]);
 
-  const [data, setData] = useState(getInitialState);
+  const [data, setData] = useState(() => (restoreData ? restoreData : getInitialState()));
+  const hydratedOrderRef = useRef(isOrderContext ? orderId : null);
+  const isFirstSaveRef = useRef(true);
 
   // Handle restoration from saved state
   useEffect(() => {
-    if (restoreData) {
-      setData(restoreData);
-      onRestored();
+    if (!restoreData) return;
+    if (isOrderContext) {
+      if (hydratedOrderRef.current === orderId) return;
+      hydratedOrderRef.current = orderId;
     }
-  }, [restoreData, onRestored]);
+    setData(restoreData);
+    if (onRestored) onRestored();
+  }, [restoreData, onRestored, isOrderContext, orderId]);
 
-  // Auto-save on every state change
+  // Auto-save on state changes after initial mount
   useEffect(() => {
+    if (isFirstSaveRef.current) {
+      isFirstSaveRef.current = false;
+      return;
+    }
     if (isOrderContext && orderId) {
       updateOrder(orderId, { 
         costingState: data,
@@ -249,11 +261,11 @@ const CostingModule = ({ restoreData, onRestored, isOrderContext = false, orderI
     });
     const fabricTotal = updatedFabrics.reduce((acc, f) => acc + calculateFabricRowCost(f), 0);
     
-    // Calculate Trims Total
-    const trimsTotal = trims.reduce((acc, t) => acc + (t.qty * t.price), 0);
+    // Calculate Trims Total (safely supports both {qty, price} and demo {rate} formats)
+    const trimsTotal = trims.reduce((acc, t) => acc + getTrimLineCost(t), 0);
     
     // Calculate Embellishments Total
-    const embellishmentTotal = embellishments.reduce((acc, e) => acc + calculateEmbellishmentCost(e), 0);
+    const embellishmentTotal = embellishments.reduce((acc, e) => acc + getSafeEmbellishmentCost(e), 0);
     
     // Calculate Manufacturing Total
     const finishingTotal = finishing.threadCuttingRate + 
@@ -362,12 +374,27 @@ const CostingModule = ({ restoreData, onRestored, isOrderContext = false, orderI
   }, [results]);
 
   const handleExport = () => {
-    generateCostingPDF(data, results, data.styleInfo.costingType === 'internal' ? breakdown : quotationData);
+    if (!isPro) {
+      openUpgradeModal('Buyer-Ready Costing PDF Export');
+      return;
+    }
+    const fileName = generateCostingPDF(
+      data,
+      results,
+      data.styleInfo.costingType === 'internal' ? breakdown : quotationData,
+      { companyProfile: preferences }
+    );
+    showToast(`Costing PDF downloaded (${fileName})`, 'success');
   };
 
   const handleExportExcel = async () => {
+    if (!isPro) {
+      openUpgradeModal('Costing Sheet Excel Export');
+      return;
+    }
     try {
       await generateQuotationExcel(data, results);
+      showToast('Cost Sheet Excel downloaded', 'success');
     } catch (error) {
       console.error('Excel Export Failed:', error);
       showToast('Failed to generate Excel sheet', 'error');
@@ -407,6 +434,7 @@ const CostingModule = ({ restoreData, onRestored, isOrderContext = false, orderI
               onReset={handleReset}
               onSave={handleSaveNamed}
               isOrderContext={isOrderContext}
+              isPro={isPro}
             />
           </div>
         </div>

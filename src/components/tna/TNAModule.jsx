@@ -1,12 +1,14 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import TNAInputs from './TNAInputs';
 import TNATimeline from './TNATimeline';
 import TNAMilestoneTable from './TNAMilestoneTable';
+import ProBadge from '../common/ProBadge';
 import { useApp } from '../../context/AppContext';
 import { useToast } from '../../context/ToastContext';
 import { generateMilestones, getMilestoneStatus } from '../../utils/tnaCalculations';
 import { generateTNAPDF } from './TNAPDF';
-import { Download, RotateCcw, AlertCircle, Save } from 'lucide-react';
+import { exportTNAToExcel, exportTNAToCSV } from '../../utils/tnaExport';
+import { Download, RotateCcw, AlertCircle, Save, FileSpreadsheet } from 'lucide-react';
 import { motion } from 'motion/react';
 import { addDays, format } from 'date-fns';
 import { saveToStorage, removeFromStorage } from '../../utils/storage';
@@ -14,9 +16,10 @@ import { saveToStorage, removeFromStorage } from '../../utils/storage';
 import { useOrders } from '../../context/OrdersContext';
 
 const TNAModule = ({ restoreData, onRestored, isOrderContext = false, orderId = null }) => {
-  const { triggerSaveIndicator, preferences } = useApp();
+  const { triggerSaveIndicator, preferences, isPro, openUpgradeModal } = useApp();
   const { showToast } = useToast();
   const { orders, updateOrder } = useOrders();
+  const skipNextGenerateRef = useRef(Boolean(restoreData?.milestones?.length));
 
   const order = useMemo(() => isOrderContext ? orders.find(o => o.id === orderId) : null, [orders, orderId, isOrderContext]);
 
@@ -35,20 +38,30 @@ const TNAModule = ({ restoreData, onRestored, isOrderContext = false, orderId = 
     includeTOP: true,
   }), [preferences, order]);
 
-  const [data, setData] = useState(getInitialState);
-  const [milestones, setMilestones] = useState([]);
+  const [data, setData] = useState(() => (restoreData?.data ? restoreData.data : getInitialState()));
+  const [milestones, setMilestones] = useState(() => (restoreData?.milestones ? restoreData.milestones : []));
+  const hydratedOrderRef = useRef(isOrderContext ? orderId : null);
+  const isFirstSaveRef = useRef(true);
 
-  // Handle restoration from saved state
+  // Handle restoration from saved state (only when switching orders or outside order context)
   useEffect(() => {
-    if (restoreData) {
-      setData(restoreData.data);
-      setMilestones(restoreData.milestones);
-      onRestored();
+    if (!restoreData?.data || !restoreData?.milestones) return;
+    if (isOrderContext) {
+      if (hydratedOrderRef.current === orderId) return;
+      hydratedOrderRef.current = orderId;
     }
-  }, [restoreData, onRestored]);
+    skipNextGenerateRef.current = true;
+    setData(restoreData.data);
+    setMilestones(restoreData.milestones);
+    if (onRestored) onRestored();
+  }, [restoreData, onRestored, isOrderContext, orderId]);
 
-  // Auto-save on every state change
+  // Auto-save on state changes after initial hydration
   useEffect(() => {
+    if (isFirstSaveRef.current) {
+      isFirstSaveRef.current = false;
+      return;
+    }
     const stateToSave = { data, milestones, lastSavedAt: new Date().toISOString() };
     if (isOrderContext && orderId) {
       updateOrder(orderId, { tnaState: stateToSave });
@@ -75,6 +88,10 @@ const TNAModule = ({ restoreData, onRestored, isOrderContext = false, orderId = 
 
   // Generate milestones when inputs change
   useEffect(() => {
+    if (skipNextGenerateRef.current) {
+      skipNextGenerateRef.current = false;
+      return;
+    }
     if (data.shipDate) {
       const generated = generateMilestones(
         data.shipDate,
@@ -164,7 +181,30 @@ const TNAModule = ({ restoreData, onRestored, isOrderContext = false, orderId = 
   };
 
   const handleExport = () => {
+    if (!isPro) {
+      openUpgradeModal('TNA PDF & Excel Export');
+      return;
+    }
     generateTNAPDF(data, milestones, summary);
+    showToast('TNA Calendar PDF downloaded', 'success');
+  };
+
+  const handleExportExcel = () => {
+    if (!isPro) {
+      openUpgradeModal('TNA Excel & CSV Export');
+      return;
+    }
+    const fileName = exportTNAToExcel({ order, tnaData: data, milestones, preferences });
+    showToast(`TNA exported to Excel (${fileName})`, 'success');
+  };
+
+  const handleExportCSV = () => {
+    if (!isPro) {
+      openUpgradeModal('TNA Excel & CSV Export');
+      return;
+    }
+    const fileName = exportTNAToCSV({ order, tnaData: data, milestones, preferences });
+    showToast(`TNA exported to CSV (${fileName})`, 'success');
   };
 
   const handleReset = () => {
@@ -206,28 +246,46 @@ const TNAModule = ({ restoreData, onRestored, isOrderContext = false, orderId = 
       <TNATimeline milestones={milestones} />
 
       <div className="space-y-4">
-        <div className="flex justify-between items-center">
+        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3">
           <h3 className="text-sm font-bold text-[#1A3C5C] uppercase tracking-wider">Milestone Details</h3>
-          <div className="flex space-x-2">
+          <div className="flex flex-wrap items-center gap-2">
             <button
               onClick={handleSaveNamed}
-              className="flex items-center space-x-2 bg-white border-2 border-[#1A3C5C] text-[#1A3C5C] hover:bg-gray-50 px-4 py-2 rounded-lg font-bold text-sm transition-all active:scale-95"
+              className="flex items-center space-x-2 bg-white border border-[#1A3C5C] text-[#1A3C5C] hover:bg-gray-50 px-3.5 py-2 rounded-lg font-bold text-xs transition-all active:scale-95 whitespace-nowrap"
             >
-              <Save size={16} />
+              <Save size={15} />
               <span>Save TNA</span>
             </button>
             <button
-              onClick={handleExport}
-              className="flex items-center space-x-2 bg-[#E8622A] hover:bg-[#d15624] text-white px-4 py-2 rounded-lg font-bold text-sm transition-all shadow-md active:scale-95"
+              onClick={handleExportExcel}
+              className="flex items-center space-x-1.5 bg-emerald-600 hover:bg-emerald-700 text-white px-3.5 py-2 rounded-lg font-bold text-xs transition-all shadow-sm active:scale-95 whitespace-nowrap"
             >
-              <Download size={16} />
-              <span>Export PDF</span>
+              <FileSpreadsheet size={15} />
+              <span>Export Excel</span>
+              <ProBadge locked={!isPro} size="xs" />
+            </button>
+            <button
+              onClick={handleExportCSV}
+              className="flex items-center space-x-1.5 bg-white border border-gray-200 hover:border-[#1A3C5C] text-[#1A3C5C] px-3.5 py-2 rounded-lg font-bold text-xs transition-all active:scale-95 whitespace-nowrap"
+            >
+              <Download size={14} />
+              <span>CSV</span>
+              <ProBadge locked={!isPro} size="xs" />
+            </button>
+            <button
+              onClick={handleExport}
+              className="flex items-center space-x-1.5 bg-[#E8622A] hover:bg-[#d15624] text-white px-3.5 py-2 rounded-lg font-bold text-xs transition-all shadow-sm active:scale-95 whitespace-nowrap"
+            >
+              <Download size={15} />
+              <span>PDF</span>
+              <ProBadge locked={!isPro} size="xs" />
             </button>
             <button
               onClick={handleReset}
               className="p-2 bg-gray-100 hover:bg-gray-200 text-gray-600 rounded-lg transition-all active:scale-95"
+              title="Reset TNA"
             >
-              <RotateCcw size={16} />
+              <RotateCcw size={15} />
             </button>
           </div>
         </div>

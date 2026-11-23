@@ -9,8 +9,10 @@ import Dashboard from './components/dashboard/Dashboard';
 import OrderDetail from './components/orders/OrderDetail';
 import FormulasPanel from './components/formulas/FormulasPanel';
 import SettingsPanel from './components/layout/SettingsPanel';
+import UpgradeProModal from './components/layout/UpgradeProModal';
 import ToastContainer from './components/layout/ToastContainer';
 import NewOrderModal from './components/orders/NewOrderModal';
+import OfflineIndicator from './components/pwa/OfflineIndicator';
 
 const AppContent = () => {
   const { isNewOrderModalOpen, setIsNewOrderModalOpen } = useApp();
@@ -18,6 +20,7 @@ const AppContent = () => {
   return (
     <div className="min-h-screen flex flex-col bg-gray-50 font-sans text-gray-900">
       <Navbar />
+      <OfflineIndicator />
       
       <main className="flex-grow relative">
         <Routes>
@@ -29,6 +32,7 @@ const AppContent = () => {
       </main>
 
       <SettingsPanel />
+      <UpgradeProModal />
       <ToastContainer />
       <NewOrderModal 
         isOpen={isNewOrderModalOpen} 

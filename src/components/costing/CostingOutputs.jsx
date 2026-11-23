@@ -1,8 +1,9 @@
 import React from 'react';
 import CostPieChart from './CostPieChart';
+import ProBadge from '../common/ProBadge';
 import { Download, RotateCcw, AlertCircle, ShieldCheck, FileText, FileSpreadsheet, Save } from 'lucide-react';
 
-const CostingOutputs = ({ data, results, breakdown, onExport, onExportExcel, onReset, onSave, isOrderContext = false }) => {
+const CostingOutputs = ({ data, results, breakdown, onExport, onExportExcel, onReset, onSave, isOrderContext = false, isPro = false }) => {
   const currencies = [
     { code: 'USD', symbol: '$' },
     { code: 'INR', symbol: '₹' },
@@ -135,8 +136,9 @@ const CostingOutputs = ({ data, results, breakdown, onExport, onExportExcel, onR
               : 'bg-[#E8622A] hover:bg-[#d15624] text-white shadow-orange-100'
           }`}
         >
-          <Download size={20} />
-          <span>Export {isInternal ? 'Internal Sheet' : 'Buyer Quotation'}</span>
+          <Download size={18} />
+          <span>Export {isInternal ? 'Internal PDF' : 'Buyer Quotation PDF'}</span>
+          <ProBadge locked={!isPro} size="xs" />
         </button>
         
         {!isOrderContext && (
@@ -161,6 +163,7 @@ const CostingOutputs = ({ data, results, breakdown, onExport, onExportExcel, onR
         >
           <FileSpreadsheet size={18} />
           <span>Export Cost Sheet Excel</span>
+          <ProBadge locked={!isPro} size="xs" />
         </button>
 
         <button

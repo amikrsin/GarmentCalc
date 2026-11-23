@@ -9,8 +9,8 @@ import { addDays, format } from 'date-fns';
 
 const NewOrderModal = ({ isOpen, onClose }) => {
   const navigate = useNavigate();
-  const { createOrder } = useOrders();
-  const { preferences } = useApp();
+  const { createOrder, activeOrdersCount } = useOrders();
+  const { isPro, openUpgradeModal } = useApp();
   const { showToast } = useToast();
 
   const [formData, setFormData] = useState({
@@ -38,6 +38,11 @@ const NewOrderModal = ({ isOpen, onClose }) => {
 
   const handleSubmit = (e) => {
     e.preventDefault();
+    if (!isPro && activeOrdersCount >= 3) {
+      onClose();
+      openUpgradeModal('Unlimited Active Orders');
+      return;
+    }
     if (!validate()) return;
 
     const newOrder = createOrder(formData);
